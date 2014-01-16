@@ -1,0 +1,5 @@
+* timeouts and delays as described in rfc
+* service.c needs a cleanup/shutdown path
+* bridge devices dont works yet
+* automagic route setting
+* ipv6

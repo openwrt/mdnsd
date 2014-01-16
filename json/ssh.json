@@ -1,0 +1,3 @@
+{
+	"_ssh._tcp.local": { "port": 22, "txt": [ "a=foo", "d=bar"] },
+}
