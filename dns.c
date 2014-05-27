@@ -67,12 +67,16 @@ dns_type_string(uint16_t type)
 void
 dns_send_question(struct uloop_fd *u, char *question, int type)
 {
+	size_t cmsg_data[( CMSG_SPACE(sizeof(struct in_pktinfo)) / sizeof(size_t)) + 1];
 	unsigned char buffer[MAX_NAME_LEN];
 	struct dns_header h = { 0 };
 	struct dns_question q = { 0 };
 	struct msghdr m = { 0 };
 	struct iovec iov[3] = { {0}, {0}, {0} };
 	struct sockaddr_in a = { 0 };
+	struct in_pktinfo *pkti;
+	struct cmsghdr *cmsg;
+	struct in_addr in;
 	int len;
 
 	a.sin_family = AF_INET;
@@ -91,6 +95,20 @@ dns_send_question(struct uloop_fd *u, char *question, int type)
 	m.msg_namelen = sizeof(struct sockaddr_in);
 	m.msg_iov = iov;
 	m.msg_iovlen = 3;
+
+	memset(cmsg_data, 0, sizeof(cmsg_data));
+	m.msg_control = cmsg_data;
+	m.msg_controllen = CMSG_LEN(sizeof(struct in_pktinfo));
+
+	cmsg = CMSG_FIRSTHDR(&m);
+	cmsg->cmsg_len = m.msg_controllen;
+	cmsg->cmsg_level = IPPROTO_IP;
+	cmsg->cmsg_type = IP_PKTINFO;
+
+	inet_aton(iface_ip, &in);
+
+	pkti = (struct in_pktinfo*) CMSG_DATA(cmsg);
+	pkti->ipi_ifindex = iface_index;
 
 	iov[0].iov_base = &h;
 	iov[0].iov_len = sizeof(struct dns_header);

@@ -42,6 +42,7 @@
 static struct uloop_timeout reconnect;
 char *iface_name = "eth0";
 const char *iface_ip;
+int iface_index;
 
 static int
 parse_answer(struct uloop_fd *u, uint8_t *buffer, int len, uint8_t **b, int *rlen, int cache)
@@ -185,7 +186,6 @@ reconnect_socket(struct uloop_timeout *timeout)
 
 		uloop_fd_add(&listener, ULOOP_READ);
 		sleep(5);
-		dns_send_question(&listener, "_services._dns-sd._tcp.local", TYPE_PTR);
 		dns_send_question(&listener, "_services._dns-sd._udp.local", TYPE_PTR);
 		announce_init(&listener);
 	}
@@ -226,7 +226,15 @@ main(int argc, char **argv)
 		fprintf(stderr, "failed to read ip for %s\n", iface_name);
 		return -1;
 	}
-	fprintf(stderr, "interface %s has ip %s\n", iface_name, iface_ip);
+
+	iface_index = get_iface_index(iface_name);
+
+	if (!iface_index) {
+		fprintf(stderr, "failed to read index for %s\n", iface_name);
+		return -1;
+	}
+
+	fprintf(stderr, "interface %s has ip %s and index %d\n", iface_name, iface_ip, iface_index);
 	signal_setup();
 
 	if (dns_init())

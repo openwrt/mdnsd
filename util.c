@@ -98,6 +98,28 @@ get_iface_ipv4(const char *ifname)
 	return ret;
 }
 
+int
+get_iface_index(const char *ifname)
+{
+	struct ifreq ir;
+	int sock;
+
+	sock = socket(AF_INET, SOCK_DGRAM, 0);
+	if (sock < 0)
+		return 0;
+
+	memset(&ir, 0, sizeof(struct ifreq));
+
+	strncpy(ir.ifr_name, ifname, sizeof(ir.ifr_name));
+
+	if (ioctl(sock, SIOCGIFINDEX, &ir) < 0)
+		return 0;
+
+	close(sock);
+
+	return ir.ifr_ifindex;
+}
+
 char*
 get_hostname(void)
 {
@@ -116,21 +138,32 @@ socket_setup(int fd, const char *ip)
 	uint8_t ttl = 255;
 	int yes = 1;
 	int no = 0;
-	struct sockaddr_in sa;
+	struct sockaddr_in sa = { 0 };
+	struct in_addr in;
+
+	inet_aton(iface_ip, &in);
 
 	sa.sin_family = AF_INET;
 	sa.sin_port = htons(MCAST_PORT);
 	inet_pton(AF_INET, MCAST_ADDR, &sa.sin_addr);
 
 	memset(&mreq, 0, sizeof(mreq));
-	mreq.imr_address.s_addr = htonl(INADDR_ANY);
+	mreq.imr_address.s_addr = in.s_addr;
 	mreq.imr_multiaddr = sa.sin_addr;
+	mreq.imr_ifindex = iface_index;
 
 	if (setsockopt(fd, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl)) < 0)
 		fprintf(stderr, "ioctl failed: IP_MULTICAST_TTL\n");
 
 	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) < 0)
 		fprintf(stderr, "ioctl failed: SO_REUSEADDR\n");
+
+	/* Some network drivers have issues with dropping membership of
+	 * mcast groups when the iface is down, but don't allow rejoining
+	 * when it comes back up. This is an ugly workaround
+	 * -- this was copied from avahi --
+	 */
+	setsockopt(fd, IPPROTO_IP, IP_DROP_MEMBERSHIP, &mreq, sizeof(mreq));
 
 	if (setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) < 0) {
 		fprintf(stderr, "failed to join multicast group: %s\n", strerror(errno));
