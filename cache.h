@@ -19,13 +19,6 @@
 
 #include "dns.h"
 
-struct cache_type {
-        struct avl_node avl;
-
-	char *key;
-	char *val;
-};
-
 struct cache_entry {
         struct avl_node avl;
 
