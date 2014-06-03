@@ -44,7 +44,7 @@ mdns_scan(struct ubus_context *ctx, struct ubus_object *obj,
 }
 
 static void
-mdns_add_records(char *name)
+mdns_add_records(const char *name)
 {
 	struct cache_record *r, *q = avl_find_element(&records, name, r, avl);
 	char *txt;
