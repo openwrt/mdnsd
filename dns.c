@@ -69,7 +69,6 @@ void
 dns_send_question(struct uloop_fd *u, char *question, int type)
 {
 	static size_t cmsg_data[( CMSG_SPACE(sizeof(struct in_pktinfo)) / sizeof(size_t)) + 1];
-	static unsigned char buffer[MAX_NAME_LEN];
 	static struct dns_header h = {
 		.questions = cpu_to_be16(1),
 	};
@@ -82,7 +81,7 @@ dns_send_question(struct uloop_fd *u, char *question, int type)
 			.iov_len = sizeof(h),
 		},
 		{
-			.iov_base = buffer,
+			.iov_base = name_buffer,
 		},
 		{
 			.iov_base = &q,
@@ -108,7 +107,7 @@ dns_send_question(struct uloop_fd *u, char *question, int type)
 	a.sin_addr.s_addr = inet_addr(MCAST_ADDR);
 	q.type = __cpu_to_be16(type);
 
-	len = dn_comp(question, buffer, MAX_NAME_LEN, NULL, NULL);
+	len = dn_comp(question, (void *) name_buffer, sizeof(name_buffer), NULL, NULL);
 	if (len < 1)
 		return;
 
