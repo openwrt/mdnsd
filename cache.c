@@ -248,6 +248,7 @@ cache_answer(struct uloop_fd *u, uint8_t *base, int blen, char *name, struct dns
 	char *p = NULL;
 	char *name_buf;
 	void *rdata_ptr, *txt_ptr;
+	int host_len = 0;
 
 	if (!(a->class & CLASS_IN))
 		return;
@@ -268,15 +269,11 @@ cache_answer(struct uloop_fd *u, uint8_t *base, int blen, char *name, struct dns
 
 		rdlength = strlen(rdata_buffer);
 
-		if (!strcmp(C_DNS_SD, name)) {
-			cache_entry(u, rdata_buffer, 0, a->ttl);
-			return;
-		}
+		if (strcmp(C_DNS_SD, name) != 0 &&
+		    nlen + 1 < rdlength && !strcmp(rdata_buffer + rdlength - nlen, name))
+			host_len = rdlength - nlen - 1;
 
-		if ((rdlength < nlen) && (rdlength - nlen - 1 > 0))
-			return;
-
-		cache_entry(u, rdata_buffer, rdlength - nlen - 1, a->ttl);
+		cache_entry(u, rdata_buffer, host_len, a->ttl);
 		return;
 
 	case TYPE_SRV:
