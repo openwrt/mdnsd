@@ -135,11 +135,10 @@ service_send_srv(struct uloop_fd *u, struct service *s)
 	if (len < 1)
 		return;
 
-	sd = malloc(len + sizeof(struct dns_srv_data));
+	sd = calloc(1, len + sizeof(struct dns_srv_data));
 	if (!sd)
 		return;
 
-	memset(sd, 0, sizeof(struct dns_srv_data));
 	sd->port = cpu_to_be16(s->port);
 	memcpy(&sd[1], buffer, len);
 	host = service_name(s->service);
