@@ -47,11 +47,10 @@ static struct blob_buf b;
 static struct kvlist types;
 
 static void
-cache_record_free(struct cache_record *r, int rem)
+cache_record_free(struct cache_record *r)
 {
 	DBG(2, "%s %s\n", dns_type_string(r->type), r->record);
-	if (rem)
-		avl_delete(&records, &r->avl);
+	avl_delete(&records, &r->avl);
 	free(r);
 }
 
@@ -80,7 +79,7 @@ cache_gc_timer(struct uloop_timeout *timeout)
 
 	avl_for_each_element_safe(&records, r, avl, p)
 		if (cache_is_expired(r->time, r->ttl))
-			cache_record_free(r, 1);
+			cache_record_free(r);
 
 	avl_for_each_element_safe(&entries, s, avl, t) {
 		if (!s->host)
@@ -133,7 +132,7 @@ void cache_cleanup(void)
 	struct cache_entry *s, *t;
 
 	avl_for_each_element_safe(&records, r, avl, p)
-		cache_record_free(r, 1);
+		cache_record_free(r);
 
 	avl_for_each_element_safe(&entries, s, avl, t)
 		cache_entry_free(s);
@@ -327,7 +326,7 @@ cache_answer(struct uloop_fd *u, uint8_t *base, int blen, char *name, struct dns
 	r = cache_record_find(name, a->type, port, dlen, rdata);
 	if (r) {
 		if (!a->ttl) {
-			cache_record_free(r, 1);
+			cache_record_free(r);
 			DBG(1, "D -> %s %s ttl:%d\n", dns_type_string(r->type), r->record, r->ttl);
 		} else {
 			r->ttl = a->ttl;
