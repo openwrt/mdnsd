@@ -237,9 +237,6 @@ main(int argc, char **argv)
 	fprintf(stderr, "interface %s has ip %s and index %d\n", iface_name, iface_ip, iface_index);
 	signal_setup();
 
-	if (dns_init())
-		return -1;
-
 	if (cache_init())
 		return -1;
 
@@ -254,7 +251,6 @@ main(int argc, char **argv)
 	uloop_run();
 	uloop_done();
 
-	dns_cleanup();
 	cache_cleanup();
 	service_cleanup();
 

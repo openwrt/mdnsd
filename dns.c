@@ -36,8 +36,8 @@
 #include "util.h"
 #include "dns.h"
 
-char *rdata_buffer;
-static char *name_buffer;
+char rdata_buffer[MAX_DATA_LEN + 1];
+static char name_buffer[MAX_NAME_LEN + 1];
 
 const char*
 dns_type_string(uint16_t type)
@@ -329,26 +329,4 @@ dns_consume_name(uint8_t *base, int blen, uint8_t **data, int *len)
 	*data += nlen;
 
 	return name_buffer;
-}
-
-int
-dns_init(void)
-{
-	name_buffer = malloc(MAX_NAME_LEN + 1);
-	rdata_buffer = malloc(MAX_DATA_LEN + 1);
-
-	if (!name_buffer || !rdata_buffer)
-		return -1;
-
-	memset(name_buffer, 0, MAX_NAME_LEN + 1);
-	memset(rdata_buffer, 0, MAX_NAME_LEN + 1);
-
-	return 0;
-}
-
-void
-dns_cleanup(void)
-{
-	free(name_buffer);
-	free(rdata_buffer);
 }
