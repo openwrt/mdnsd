@@ -100,7 +100,7 @@ dns_send_packet(int fd, struct iovec *iov, int iov_len)
 }
 
 void
-dns_send_question(struct uloop_fd *u, char *question, int type)
+dns_send_question(struct uloop_fd *u, const char *question, int type)
 {
 	static struct dns_header h = {
 		.questions = cpu_to_be16(1),
@@ -157,7 +157,7 @@ dns_init_answer(void)
 }
 
 void
-dns_add_answer(int type, uint8_t *rdata, uint16_t rdlength)
+dns_add_answer(int type, const uint8_t *rdata, uint16_t rdlength)
 {
 	struct dns_reply *a = &dns_reply[dns_answer_cnt];
 	if (dns_answer_cnt == MAX_ANSWER)
@@ -169,7 +169,7 @@ dns_add_answer(int type, uint8_t *rdata, uint16_t rdlength)
 }
 
 void
-dns_send_answer(struct uloop_fd *u, char *answer)
+dns_send_answer(struct uloop_fd *u, const char *answer)
 {
 	uint8_t buffer[256];
 	struct dns_header h = { 0 };
@@ -223,7 +223,7 @@ dns_send_answer(struct uloop_fd *u, char *answer)
 }
 
 static int
-scan_name(uint8_t *buffer, int len)
+scan_name(const uint8_t *buffer, int len)
 {
 	int offset = 0;
 
@@ -306,7 +306,7 @@ dns_consume_answer(uint8_t **data, int *len)
 }
 
 char*
-dns_consume_name(uint8_t *base, int blen, uint8_t **data, int *len)
+dns_consume_name(const uint8_t *base, int blen, uint8_t **data, int *len)
 {
 	int nlen = scan_name(*data, *len);
 
