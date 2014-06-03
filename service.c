@@ -46,8 +46,8 @@ struct service {
 
 	time_t t;
 
-	char *service;
-	char *daemon;
+	const char *service;
+	const char *daemon;
 	const uint8_t *txt;
 	int txt_len;
 	int port;
@@ -94,7 +94,7 @@ service_send_ptr(struct uloop_fd *u, struct service *s)
 }
 
 static void
-service_send_ptr_c(struct uloop_fd *u, char *host)
+service_send_ptr_c(struct uloop_fd *u, const char *host)
 {
 	unsigned char buffer[MAX_NAME_LEN];
 	int len = dn_comp(host, buffer, MAX_NAME_LEN, NULL, NULL);
@@ -280,10 +280,8 @@ service_load(char *path)
 				continue;
 
 			s->port = blobmsg_get_u32(_tb[SERVICE_PORT]);
-			s->service = d_service;
-			s->daemon = d_daemon;
-			strcpy(s->service, blobmsg_name(cur));
-			strcpy(s->daemon, gl.gl_pathv[i]);
+			s->service = strcpy(d_service, blobmsg_name(cur));
+			s->daemon = strcpy(d_daemon, gl.gl_pathv[i]);
 			s->avl.key = s->service;
 			s->active = 1;
 			s->t = 0;
