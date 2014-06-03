@@ -52,12 +52,6 @@ cache_record_free(struct cache_record *r, int rem)
 	DBG(2, "%s %s\n", dns_type_string(r->type), r->record);
 	if (rem)
 		avl_delete(&records, &r->avl);
-	if (r->record)
-		free(r->record);
-	if (r->rdata)
-		free(r->rdata);
-	if (r->txt)
-		free(r->txt);
 	free(r);
 }
 
@@ -253,6 +247,8 @@ cache_answer(struct uloop_fd *u, uint8_t *base, int blen, char *name, struct dns
 	struct cache_record *r;
 	int port = 0, dlen = 0, tlen = 0, nlen, rdlength;
 	char *p = NULL;
+	char *name_buf;
+	void *rdata_ptr, *txt_ptr;
 
 	if (!(a->class & CLASS_IN))
 		return;
@@ -343,32 +339,26 @@ cache_answer(struct uloop_fd *u, uint8_t *base, int blen, char *name, struct dns
 	if (!a->ttl)
 		return;
 
-	r = malloc(sizeof(struct cache_record));
-	memset(r, 0, sizeof(struct cache_record));
-	r->avl.key = r->record = strdup(name);
+	r = calloc_a(sizeof(*r),
+		&name_buf, strlen(name) + 1,
+		&txt_ptr, tlen,
+		&rdata_ptr, dlen);
+
+	r->avl.key = r->record = strcpy(name_buf, name);
 	r->type = a->type;
 	r->ttl = a->ttl;
 	r->port = port;
 	r->rdlength = dlen;
 	r->time = time(NULL);
 
-	if (tlen) {
-		r->txt = malloc(tlen);
-		if (r->txt)
-			memcpy(r->txt, rdata_buffer, tlen);
-	}
+	if (tlen)
+		r->txt = memcpy(txt_ptr, rdata_buffer, tlen);
 
-	if (dlen) {
-		r->rdata = malloc(dlen);
-		if (!r->rdata) {
-			cache_record_free(r, 0);
-			return;
-		}
-		memcpy(r->rdata, rdata, dlen);
-	}
+	if (dlen)
+		r->rdata = memcpy(rdata_ptr, rdata, dlen);
 
 	if (avl_insert(&records, &r->avl))
-		cache_record_free(r, 0);
+		free(r);
 	else
 		DBG(1, "A -> %s %s ttl:%d\n", dns_type_string(r->type), r->record, r->ttl);
 }
