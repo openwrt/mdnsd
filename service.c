@@ -261,16 +261,20 @@ service_load(char *path)
 			struct service *s;
 			char *d_service, *d_txt, *d_daemon;
 			int rem2;
+			int txt_len = 0;
 
 			blobmsg_parse(service_policy, ARRAY_SIZE(service_policy),
 				_tb, blobmsg_data(cur), blobmsg_data_len(cur));
 			if (!_tb[SERVICE_PORT] || !_tb[SERVICE_TXT])
 				continue;
 
+			blobmsg_for_each_attr(txt, _tb[SERVICE_TXT], rem2)
+				txt_len += 1 + strlen(blobmsg_get_string(txt));
+
 			s = calloc_a(sizeof(*s),
 				&d_daemon, strlen(gl.gl_pathv[i]) + 1,
 				&d_service, strlen(blobmsg_name(cur)) + 1,
-				&d_txt, blobmsg_data_len(_tb[SERVICE_TXT]));
+				&d_txt, txt_len);
 			if (!s)
 				continue;
 
@@ -282,16 +286,11 @@ service_load(char *path)
 			s->avl.key = s->service;
 			s->active = 1;
 			s->t = 0;
+			s->txt_len = txt_len;
+			s->txt = d_txt;
 			avl_insert(&services, &s->avl);
 
-			blobmsg_for_each_attr(txt, _tb[SERVICE_TXT], rem2)
-				s->txt_len += 1 + strlen(blobmsg_get_string(txt));
-
 			if (!s->txt_len)
-				continue;
-
-			d_txt = s->txt = malloc(s->txt_len);
-			if (!s->txt)
 				continue;
 
 			blobmsg_for_each_attr(txt, _tb[SERVICE_TXT], rem2) {
