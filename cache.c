@@ -159,23 +159,12 @@ cache_scan(void)
 }
 
 static struct cache_entry*
-cache_find_entry(char *entry)
-{
-	struct cache_entry *s;
-
-	avl_for_each_element(&entries, s, avl)
-		if (!strcmp(s->entry, entry))
-			return s;
-	return NULL;
-}
-
-static struct cache_entry*
 cache_entry(struct uloop_fd *u, char *entry, int hlen, int ttl)
 {
 	struct cache_entry *s;
 	char *type;
 
-	s = cache_find_entry(entry);
+	s = avl_find_element(&entries, entry, s, avl);
 	if (s)
 		return s;
 
