@@ -29,14 +29,14 @@ struct cache_entry {
 };
 
 struct cache_record {
-        struct avl_node avl;
+	struct avl_node avl;
 
-	char *record;
+	const char *record;
 	uint16_t type;
 	uint32_t ttl;
 	int port;
-	char *txt;
-	uint8_t *rdata;
+	const char *txt;
+	const uint8_t *rdata;
 	uint16_t rdlength;
 	time_t time;
 };

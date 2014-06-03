@@ -47,7 +47,7 @@ static void
 mdns_add_records(const char *name)
 {
 	struct cache_record *r, *q = avl_find_element(&records, name, r, avl);
-	char *txt;
+	const char *txt;
 	char buffer[MAX_NAME_LEN];
 
 	if (!q)
