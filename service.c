@@ -70,8 +70,8 @@ char *hostname = NULL;
 static char *sdudp =  "_services._dns-sd._udp.local";
 static char *sdtcp =  "_services._dns-sd._tcp.local";
 
-char*
-service_name(char *domain)
+char *
+service_name(const char *domain)
 {
 	static char buffer[256];
 
@@ -84,7 +84,7 @@ static void
 service_send_ptr(struct uloop_fd *u, struct service *s)
 {
 	unsigned char buffer[MAX_NAME_LEN];
-	char *host = service_name(s->service);
+	const char *host = service_name(s->service);
 	int len = dn_comp(host, buffer, MAX_NAME_LEN, NULL, NULL);
 
 	if (len < 1)
@@ -173,7 +173,7 @@ service_reply_a(struct uloop_fd *u, int type)
 }
 
 void
-service_reply(struct uloop_fd *u, char *match)
+service_reply(struct uloop_fd *u, const char *match)
 {
 	struct service *s;
 
@@ -209,7 +209,7 @@ service_reply(struct uloop_fd *u, char *match)
 }
 
 void
-service_announce_services(struct uloop_fd *u, char *service)
+service_announce_services(struct uloop_fd *u, const char *service)
 {
 	struct service *s;
 	int tcp = 1;

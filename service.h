@@ -15,12 +15,12 @@
 #define _SERVICE_H__
 
 extern char *hostname;
-extern char* service_name(char *domain);
+extern char *service_name(const char *domain);
 extern void service_init(void);
 extern void service_cleanup(void);
 extern void service_announce(struct uloop_fd *u);
-extern void service_announce_services(struct uloop_fd *u, char *service);
-extern void service_reply(struct uloop_fd *u, char *match);
+extern void service_announce_services(struct uloop_fd *u, const char *service);
+extern void service_reply(struct uloop_fd *u, const char *match);
 extern void service_reply_a(struct uloop_fd *u, int type);
 
 #endif
