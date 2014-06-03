@@ -33,6 +33,7 @@
 #include <libubox/uloop.h>
 #include <libubox/avl-cmp.h>
 #include <libubox/blobmsg_json.h>
+#include <libubox/kvlist.h>
 #include <libubus.h>
 
 #include "cache.h"
@@ -40,8 +41,10 @@
 #include "dns.h"
 
 static struct uloop_timeout cache_gc;
-struct avl_tree records, entries, types, hosts;
+struct avl_tree records, entries, hosts;
 static struct blob_buf b;
+
+static struct kvlist types;
 
 static void
 cache_record_free(struct cache_record *r, int rem)
@@ -103,41 +106,28 @@ static void
 cache_load_services(void)
 {
 	struct blob_attr *cur;
-        int rem;
+	int rem;
 
-        blob_buf_init(&b, 0);
+	blob_buf_init(&b, 0);
 
 	if (!blobmsg_add_json_from_file(&b, "/lib/mdns/service-types"))
 		return;
 
-	blob_for_each_attr(cur, b.head, rem) {
-		struct cache_type *t = malloc(sizeof(struct cache_type));
-
-		if (!t)
-			continue;
-		t->avl.key = t->key = strdup(blobmsg_name(cur));
-		t->val = strdup(blobmsg_get_string(cur));
-		avl_insert(&types, &t->avl);
-	}
+	blob_for_each_attr(cur, b.head, rem)
+		kvlist_set(&types, blobmsg_name(cur), blobmsg_get_string(cur));
 }
 
 char*
 cache_lookup_name(const char *key)
 {
-	struct cache_type *t;
-
-	t = avl_find_element(&types, key, t, avl);
-	if (!t)
-		return NULL;
-
-	return t->val;
+	return kvlist_get(&types, key);
 }
 
 int
 cache_init(void)
 {
+	kvlist_init(&types, kvlist_strlen);
 	avl_init(&entries, avl_strcmp, true, NULL);
-	avl_init(&types, avl_strcmp, false, NULL);
 	avl_init(&records, avl_strcmp, true, NULL);
 
 	cache_gc.cb = cache_gc_timer;

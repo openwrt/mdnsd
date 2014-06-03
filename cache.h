@@ -48,7 +48,7 @@ struct cache_record {
 	time_t time;
 };
 
-extern struct avl_tree records, entries, types;
+extern struct avl_tree records, entries;
 
 extern int cache_init(void);
 extern void cache_scan(void);
