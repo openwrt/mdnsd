@@ -42,13 +42,13 @@ enum {
 };
 
 struct service {
-        struct avl_node avl;
+	struct avl_node avl;
 
 	time_t t;
 
 	char *service;
 	char *daemon;
-	char *txt;
+	const uint8_t *txt;
 	int txt_len;
 	int port;
 	int active;
@@ -259,7 +259,8 @@ service_load(char *path)
 			continue;
 		blob_for_each_attr(cur, b.head, rem) {
 			struct service *s;
-			char *d_service, *d_txt, *d_daemon;
+			char *d_service, *d_daemon;
+			uint8_t *d_txt;
 			int rem2;
 			int txt_len = 0;
 
