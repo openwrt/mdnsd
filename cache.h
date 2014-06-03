@@ -20,10 +20,10 @@
 #include "dns.h"
 
 struct cache_entry {
-        struct avl_node avl;
+	struct avl_node avl;
 
-	char *entry;
-	char *host;
+	const char *entry;
+	const char *host;
 	uint32_t ttl;
 	time_t time;
 };
