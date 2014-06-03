@@ -185,7 +185,7 @@ socket_setup(int fd, const char *ip)
 }
 
 void*
-memdup(void *d, int l)
+memdup(const void *d, int l)
 {
 	void *r = malloc(l);
 	if (!r)

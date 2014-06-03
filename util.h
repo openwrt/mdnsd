@@ -24,7 +24,7 @@ extern struct uloop_fd listener;
 extern const char *iface_ip;
 extern int iface_index;
 
-void *memdup(void *d, int l);
+void *memdup(const void *d, int l);
 
 extern void signal_setup(void);
 extern int socket_setup(int fd, const char *ip);
