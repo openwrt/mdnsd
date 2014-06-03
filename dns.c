@@ -182,10 +182,7 @@ dns_send_answer(struct uloop_fd *u, char *answer)
 	h.answers = __cpu_to_be16(dns_answer_cnt);
 	h.flags = __cpu_to_be16(0x8400);
 
-	iov = malloc(sizeof(struct iovec) * ((dns_answer_cnt * 3) + 1));
-	if (!iov)
-		return;
-
+	iov = alloca(sizeof(struct iovec) * ((dns_answer_cnt * 3) + 1));
 	iov[0].iov_base = &h;
 	iov[0].iov_len = sizeof(struct dns_header);
 
