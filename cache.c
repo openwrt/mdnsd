@@ -66,10 +66,6 @@ cache_entry_free(struct cache_entry *s)
 {
 	DBG(2, "%s\n", s->entry);
 	avl_delete(&entries, &s->avl);
-	if (s->host)
-		free(s->host);
-	if (s->entry)
-		free(s->entry);
 	free(s);
 }
 
@@ -162,21 +158,26 @@ static struct cache_entry*
 cache_entry(struct uloop_fd *u, char *entry, int hlen, int ttl)
 {
 	struct cache_entry *s;
+	char *entry_buf;
+	char *host_buf;
 	char *type;
 
 	s = avl_find_element(&entries, entry, s, avl);
 	if (s)
 		return s;
 
-	s = malloc(sizeof(struct cache_entry));
-	memset(s, 0, sizeof(struct cache_entry));
-	s->avl.key = s->entry = strdup(entry);
+	s = calloc_a(sizeof(*s),
+		&entry_buf, strlen(entry) + 1,
+		&host_buf, hlen ? hlen + 1 : 0);
+
+	s->avl.key = s->entry = strcpy(entry_buf, entry);
 	s->time = time(NULL);
 	s->ttl = ttl;
 
 	if (hlen)
-		s->host = strndup(s->entry, hlen);
-	type = strstr(s->entry, "._");
+		s->host = strncpy(host_buf, s->entry, hlen);
+
+	type = strstr(entry_buf, "._");
 	if (type)
 		type++;
 	if (type)
