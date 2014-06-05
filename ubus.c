@@ -107,10 +107,7 @@ mdns_browse(struct ubus_context *ctx, struct ubus_object *obj,
 			continue;
 
 		if (!c1) {
-			char *type = cache_lookup_name(buffer);
 			c1 = blobmsg_open_table(&b, buffer);
-			if (type)
-				blobmsg_add_string(&b, ".desc", type);
 		}
 		snprintf(buffer, MAX_NAME_LEN, s->entry);
 		local = strstr(buffer, "._");

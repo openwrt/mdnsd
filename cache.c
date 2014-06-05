@@ -42,9 +42,6 @@
 
 static struct uloop_timeout cache_gc;
 struct avl_tree records, entries, hosts;
-static struct blob_buf b;
-
-static struct kvlist types;
 
 static void
 cache_record_free(struct cache_record *r)
@@ -91,37 +88,14 @@ cache_gc_timer(struct uloop_timeout *timeout)
 	uloop_timeout_set(timeout, 10000);
 }
 
-static void
-cache_load_services(void)
-{
-	struct blob_attr *cur;
-	int rem;
-
-	blob_buf_init(&b, 0);
-
-	if (!blobmsg_add_json_from_file(&b, "/lib/mdns/service-types"))
-		return;
-
-	blob_for_each_attr(cur, b.head, rem)
-		kvlist_set(&types, blobmsg_name(cur), blobmsg_get_string(cur));
-}
-
-char*
-cache_lookup_name(const char *key)
-{
-	return kvlist_get(&types, key);
-}
-
 int
 cache_init(void)
 {
-	kvlist_init(&types, kvlist_strlen);
 	avl_init(&entries, avl_strcmp, true, NULL);
 	avl_init(&records, avl_strcmp, true, NULL);
 
 	cache_gc.cb = cache_gc_timer;
 	uloop_timeout_set(&cache_gc, 10000);
-	cache_load_services();
 
 	return 0;
 }
