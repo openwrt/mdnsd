@@ -22,6 +22,7 @@
 
 #include "ubus.h"
 #include "cache.h"
+#include "service.h"
 
 static struct ubus_auto_conn conn;
 static struct blob_buf b;
@@ -31,6 +32,7 @@ mdns_reload(struct ubus_context *ctx, struct ubus_object *obj,
 		struct ubus_request_data *req, const char *method,
 		struct blob_attr *msg)
 {
+	service_init();
 	return 0;
 }
 
