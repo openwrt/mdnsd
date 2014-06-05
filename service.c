@@ -26,7 +26,7 @@
 #include <uci.h>
 #include <uci_blob.h>
 
-#include <libubox/avl.h>
+#include <libubox/vlist.h>
 #include <libubox/uloop.h>
 #include <libubox/avl-cmp.h>
 #include <libubox/blobmsg_json.h>
@@ -42,7 +42,7 @@ enum {
 };
 
 struct service {
-	struct avl_node avl;
+	struct vlist_node node;
 
 	time_t t;
 
@@ -64,8 +64,12 @@ static const struct uci_blob_param_list service_attr_list = {
 	.params = service_policy,
 };
 
+static void
+service_update(struct vlist_tree *tree, struct vlist_node *node_new,
+	       struct vlist_node *node_old);
+
 static struct blob_buf b;
-static struct avl_tree services;
+static VLIST_TREE(services, avl_strcmp, service_update, false, false);
 char *hostname = NULL;
 static char *sdudp =  "_services._dns-sd._udp.local";
 static char *sdtcp =  "_services._dns-sd._tcp.local";
@@ -177,7 +181,7 @@ service_reply(struct uloop_fd *u, const char *match)
 {
 	struct service *s;
 
-	avl_for_each_element(&services, s, avl) {
+	vlist_for_each_element(&services, s, node) {
 		char *host = service_name(s->service);
 		char *service = strstr(host, "._");
 
@@ -219,7 +223,7 @@ service_announce_services(struct uloop_fd *u, const char *service)
 	else if (strcmp(service, sdtcp))
 		return;
 
-	avl_for_each_element(&services, s, avl) {
+	vlist_for_each_element(&services, s, node) {
 		if (!strstr(s->service, "._tcp") && tcp)
 			continue;
 		if (!strstr(s->service, "._udp") && !tcp)
@@ -240,6 +244,19 @@ service_announce(struct uloop_fd *u)
 {
 	service_announce_services(u, sdudp);
 	service_announce_services(u, sdtcp);
+}
+
+static void
+service_update(struct vlist_tree *tree, struct vlist_node *node_new,
+	       struct vlist_node *node_old)
+{
+	struct service *s;
+
+	if (!node_old)
+		return;
+
+	s = container_of(node_old, struct service, node);
+	free(s);
 }
 
 static void
@@ -282,15 +299,10 @@ service_load(char *path)
 			s->port = blobmsg_get_u32(_tb[SERVICE_PORT]);
 			s->service = strcpy(d_service, blobmsg_name(cur));
 			s->daemon = strcpy(d_daemon, gl.gl_pathv[i]);
-			s->avl.key = s->service;
 			s->active = 1;
 			s->t = 0;
 			s->txt_len = txt_len;
 			s->txt = d_txt;
-			avl_insert(&services, &s->avl);
-
-			if (!s->txt_len)
-				continue;
 
 			blobmsg_for_each_attr(txt, _tb[SERVICE_TXT], rem2) {
 				int len = strlen(blobmsg_get_string(txt));
@@ -303,6 +315,8 @@ service_load(char *path)
 				memcpy(d_txt, blobmsg_get_string(txt), len);
 				d_txt += len;
 			}
+
+			vlist_add(&services, &s->node, s->service);
 		}
 	}
 }
@@ -312,11 +326,14 @@ service_init(void)
 {
 	if (!hostname)
 		hostname = get_hostname();
-	avl_init(&services, avl_strcmp, true, NULL);
+
+	vlist_update(&services);
 	service_load("/tmp/run/mdnsd/*");
+	vlist_flush(&services);
 }
 
 void
 service_cleanup(void)
 {
+	vlist_flush(&services);
 }
