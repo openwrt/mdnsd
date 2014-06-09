@@ -15,7 +15,6 @@
 #define _ANNOUNCE_H__
 
 extern int announce_ttl;
-extern struct uloop_fd *announce_fd;
-extern void announce_init(struct uloop_fd *u);
+extern void announce_init(void);
 
 #endif

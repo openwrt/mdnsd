@@ -123,7 +123,7 @@ cache_scan(void)
 }
 
 static struct cache_entry*
-cache_entry(struct uloop_fd *u, char *entry, int hlen, int ttl)
+cache_entry(struct interface *iface, char *entry, int hlen, int ttl)
 {
 	struct cache_entry *s;
 	char *entry_buf;
@@ -153,7 +153,7 @@ cache_entry(struct uloop_fd *u, char *entry, int hlen, int ttl)
 	avl_insert(&entries, &s->avl);
 
 	if (!hlen)
-		dns_send_question(cur_iface, entry, TYPE_PTR);
+		dns_send_question(iface, entry, TYPE_PTR);
 
 	return s;
 }
@@ -215,7 +215,7 @@ cache_host_is_known(char *record)
 }
 
 void
-cache_answer(struct uloop_fd *u, uint8_t *base, int blen, char *name, struct dns_answer *a, uint8_t *rdata)
+cache_answer(struct interface *iface, uint8_t *base, int blen, char *name, struct dns_answer *a, uint8_t *rdata)
 {
 	struct dns_srv_data *dsd = (struct dns_srv_data *) rdata;
 	struct cache_record *r;
@@ -248,7 +248,7 @@ cache_answer(struct uloop_fd *u, uint8_t *base, int blen, char *name, struct dns
 		    nlen + 1 < rdlength && !strcmp(rdata_buffer + rdlength - nlen, name))
 			host_len = rdlength - nlen - 1;
 
-		cache_entry(u, rdata_buffer, host_len, a->ttl);
+		cache_entry(iface, rdata_buffer, host_len, a->ttl);
 		return;
 
 	case TYPE_SRV:
@@ -278,14 +278,14 @@ cache_answer(struct uloop_fd *u, uint8_t *base, int blen, char *name, struct dns
 		break;
 
 	case TYPE_A:
-		cache_entry(u, name, strlen(name), a->ttl);
+		cache_entry(iface, name, strlen(name), a->ttl);
 		if (a->rdlength != 4)
 			return;
 		dlen = 4;
 		break;
 
 	case TYPE_AAAA:
-		cache_entry(u, name, strlen(name), a->ttl);
+		cache_entry(iface, name, strlen(name), a->ttl);
 		if (a->rdlength != 16)
 			return;
 		dlen = 16;

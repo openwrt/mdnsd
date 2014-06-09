@@ -36,7 +36,6 @@ enum {
 };
 
 static struct uloop_timeout announce;
-struct uloop_fd *announce_fd;
 static int announce_state;
 int announce_ttl = 75 * 60;
 
@@ -69,17 +68,16 @@ announce_timer(struct uloop_timeout *timeout)
 			announce_state++;
 
 		case STATE_ANNOUNCE:
-			service_announce(announce_fd);
+			service_announce(cur_iface);
 			uloop_timeout_set(timeout, announce_ttl * 800);
 			break;
 	}
 }
 
 void
-announce_init(struct uloop_fd *u)
+announce_init(void)
 {
 	announce_state = STATE_PROBE1;
 	announce.cb = announce_timer;
-	announce_fd = u;
 	uloop_timeout_set(&announce, 100);
 }

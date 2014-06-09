@@ -86,7 +86,7 @@ service_name(const char *domain)
 }
 
 static void
-service_send_ptr(struct uloop_fd *u, struct service *s)
+service_add_ptr(struct service *s)
 {
 	unsigned char buffer[MAX_NAME_LEN];
 	const char *host = service_name(s->service);
@@ -99,7 +99,7 @@ service_send_ptr(struct uloop_fd *u, struct service *s)
 }
 
 static void
-service_send_ptr_c(struct uloop_fd *u, const char *host)
+service_add_ptr_c(const char *host)
 {
 	unsigned char buffer[MAX_NAME_LEN];
 	int len = dn_comp(host, buffer, MAX_NAME_LEN, NULL, NULL);
@@ -111,15 +111,15 @@ service_send_ptr_c(struct uloop_fd *u, const char *host)
 }
 
 static void
-service_send_a(struct uloop_fd *u)
+service_send_a(struct interface *iface)
 {
 	unsigned char buffer[MAX_NAME_LEN];
 	char *host = service_name("local");
 	int len = dn_comp(host, buffer, MAX_NAME_LEN, NULL, NULL);
 	struct in_addr in;
 
-	if (!inet_aton(cur_iface->ip, &in)) {
-		fprintf(stderr, "%s is not valid\n", cur_iface->ip);
+	if (!inet_aton(iface->ip, &in)) {
+		fprintf(stderr, "%s is not valid\n", iface->ip);
 		return;
 	}
 
@@ -130,7 +130,7 @@ service_send_a(struct uloop_fd *u)
 }
 
 static void
-service_send_srv(struct uloop_fd *u, struct service *s)
+service_add_srv(struct service *s)
 {
 	unsigned char buffer[MAX_NAME_LEN];
 	struct dns_srv_data *sd;
@@ -167,18 +167,18 @@ service_timeout(struct service *s)
 }
 
 void
-service_reply_a(struct uloop_fd *u, int type)
+service_reply_a(struct interface *iface, int type)
 {
 	if (type != TYPE_A)
 		return;
 
 	dns_init_answer();
-	service_send_a(u);
-	dns_send_answer(u, service_name("local"));
+	service_send_a(iface);
+	dns_send_answer(iface, service_name("local"));
 }
 
 void
-service_reply(struct uloop_fd *u, const char *match)
+service_reply(struct interface *iface, const char *match)
 {
 	struct service *s;
 
@@ -195,26 +195,26 @@ service_reply(struct uloop_fd *u, const char *match)
 			continue;
 
 		dns_init_answer();
-		service_send_ptr(u, s);
-		dns_send_answer(u, service);
+		service_add_ptr(s);
+		dns_send_answer(iface, service);
 
 		dns_init_answer();
-		service_send_srv(u, s);
+		service_add_srv(s);
 		if (s->txt && s->txt_len)
 			dns_add_answer(TYPE_TXT, (uint8_t *) s->txt, s->txt_len);
-		dns_send_answer(u, host);
+		dns_send_answer(iface, host);
 	}
 
 	if (match)
 		return;
 
 	dns_init_answer();
-	service_send_a(u);
-	dns_send_answer(u, service_name("local"));
+	service_send_a(iface);
+	dns_send_answer(iface, service_name("local"));
 }
 
 void
-service_announce_services(struct uloop_fd *u, const char *service)
+service_announce_services(struct interface *iface, const char *service)
 {
 	struct service *s;
 	int tcp = 1;
@@ -231,20 +231,20 @@ service_announce_services(struct uloop_fd *u, const char *service)
 			continue;
 		s->t = 0;
 		dns_init_answer();
-		service_send_ptr_c(u, s->service);
+		service_add_ptr_c(s->service);
 		if (tcp)
-			dns_send_answer(u, sdtcp);
+			dns_send_answer(iface, sdtcp);
 		else
-			dns_send_answer(u, sdudp);
-		service_reply(u, s->service);
+			dns_send_answer(iface, sdudp);
+		service_reply(iface, s->service);
 	}
 }
 
 void
-service_announce(struct uloop_fd *u)
+service_announce(struct interface *iface)
 {
-	service_announce_services(u, sdudp);
-	service_announce_services(u, sdtcp);
+	service_announce_services(iface, sdudp);
+	service_announce_services(iface, sdtcp);
 }
 
 static void

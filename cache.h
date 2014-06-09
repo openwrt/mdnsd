@@ -46,7 +46,7 @@ extern struct avl_tree records, entries;
 extern int cache_init(void);
 extern void cache_scan(void);
 extern void cache_cleanup(void);
-extern void cache_answer(struct uloop_fd *u, uint8_t *base, int blen,
+extern void cache_answer(struct interface *iface, uint8_t *base, int blen,
 		char *name, struct dns_answer *a, uint8_t *rdata);
 extern int cache_host_is_known(char *record);
 extern char* cache_lookup_name(const char *key);

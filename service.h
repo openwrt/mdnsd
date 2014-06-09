@@ -18,9 +18,9 @@ extern char *hostname;
 extern char *service_name(const char *domain);
 extern void service_init(void);
 extern void service_cleanup(void);
-extern void service_announce(struct uloop_fd *u);
-extern void service_announce_services(struct uloop_fd *u, const char *service);
-extern void service_reply(struct uloop_fd *u, const char *match);
-extern void service_reply_a(struct uloop_fd *u, int type);
+extern void service_announce(struct interface *iface);
+extern void service_announce_services(struct interface *iface, const char *service);
+extern void service_reply(struct interface *iface, const char *match);
+extern void service_reply_a(struct interface *iface, int type);
 
 #endif

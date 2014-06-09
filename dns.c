@@ -136,7 +136,7 @@ dns_add_answer(int type, const uint8_t *rdata, uint16_t rdlength)
 }
 
 void
-dns_send_answer(struct uloop_fd *u, const char *answer)
+dns_send_answer(struct interface *iface, const char *answer)
 {
 	uint8_t buffer[256];
 	struct dns_header h = { 0 };
@@ -179,7 +179,7 @@ dns_send_answer(struct uloop_fd *u, const char *answer)
 		DBG(1, "A <- %s %s\n", dns_type_string(dns_reply[i].type), answer);
 	}
 
-	if (interface_send_packet(cur_iface, iov, (dns_answer_cnt * 3) + 1) < 0)
+	if (interface_send_packet(iface, iov, (dns_answer_cnt * 3) + 1) < 0)
 		fprintf(stderr, "failed to send question\n");
 
 	for (i = 0; i < dns_answer_cnt; i++) {

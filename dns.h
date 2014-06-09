@@ -71,7 +71,7 @@ extern char rdata_buffer[MAX_DATA_LEN + 1];
 extern void dns_send_question(struct interface *iface, const char *question, int type);
 extern void dns_init_answer(void);
 extern void dns_add_answer(int type, const uint8_t *rdata, uint16_t rdlength);
-extern void dns_send_answer(struct uloop_fd *u, const char *answer);
+extern void dns_send_answer(struct interface *iface, const char *answer);
 extern char* dns_consume_name(const uint8_t *base, int blen, uint8_t **data, int *len);
 extern struct dns_answer* dns_consume_answer(uint8_t **data, int *len);
 extern struct dns_question* dns_consume_question(uint8_t **data, int *len);

@@ -44,7 +44,7 @@ static struct uloop_timeout reconnect;
 char *iface_name = "eth0";
 
 static int
-parse_answer(struct uloop_fd *u, uint8_t *buffer, int len, uint8_t **b, int *rlen, int cache)
+parse_answer(struct interface *iface, uint8_t *buffer, int len, uint8_t **b, int *rlen, int cache)
 {
 	char *name = dns_consume_name(buffer, len, b, rlen);
 	struct dns_answer *a;
@@ -71,13 +71,13 @@ parse_answer(struct uloop_fd *u, uint8_t *buffer, int len, uint8_t **b, int *rle
 	*b += a->rdlength;
 
 	if (cache)
-		cache_answer(u, buffer, len, name, a, rdata);
+		cache_answer(iface, buffer, len, name, a, rdata);
 
 	return 0;
 }
 
 static void
-parse_question(struct uloop_fd *u, char *name, struct dns_question *q)
+parse_question(struct interface *iface, char *name, struct dns_question *q)
 {
 	char *host;
 
@@ -87,12 +87,12 @@ parse_question(struct uloop_fd *u, char *name, struct dns_question *q)
 	case TYPE_ANY:
 		host = service_name("local");
 		if (!strcmp(name, host))
-			service_reply(u, NULL);
+			service_reply(iface, NULL);
 		break;
 
 	case TYPE_PTR:
-		service_announce_services(u, name);
-		service_reply(u, name);
+		service_announce_services(iface, name);
+		service_reply(iface, name);
 		break;
 
 	case TYPE_AAAA:
@@ -101,7 +101,7 @@ parse_question(struct uloop_fd *u, char *name, struct dns_question *q)
 		if (host)
 			*host = '\0';
 		if (!strcmp(hostname, name))
-			service_reply_a(u, q->type);
+			service_reply_a(iface, q->type);
 		break;
 	};
 }
@@ -109,7 +109,8 @@ parse_question(struct uloop_fd *u, char *name, struct dns_question *q)
 static void
 read_socket(struct uloop_fd *u, unsigned int events)
 {
-	uint8_t buffer[8 * 1024];
+	struct interface *iface = container_of(u, struct interface, fd);
+	static uint8_t buffer[8 * 1024];
 	uint8_t *b = buffer;
 	struct dns_header *h;
 	int len, rlen;
@@ -150,20 +151,20 @@ read_socket(struct uloop_fd *u, unsigned int events)
 		}
 
 		if (!(h->flags & FLAG_RESPONSE))
-			parse_question(announce_fd, name, q);
+			parse_question(iface, name, q);
 	}
 
 	if (!(h->flags & FLAG_RESPONSE))
 		return;
 
 	while (h->answers-- > 0)
-		parse_answer(u, buffer, len, &b, &rlen, 1);
+		parse_answer(iface, buffer, len, &b, &rlen, 1);
 
 	while (h->authority-- > 0)
-		parse_answer(u, buffer, len, &b, &rlen, 0);
+		parse_answer(iface, buffer, len, &b, &rlen, 0);
 
 	while (h->additional-- > 0)
-		parse_answer(u, buffer, len, &b, &rlen, 1);
+		parse_answer(iface, buffer, len, &b, &rlen, 1);
 }
 
 static void
@@ -183,7 +184,7 @@ reconnect_socket(struct uloop_timeout *timeout)
 		uloop_fd_add(&cur_iface->fd, ULOOP_READ);
 		sleep(5);
 		dns_send_question(cur_iface, "_services._dns-sd._udp.local", TYPE_PTR);
-		announce_init(&cur_iface->fd);
+		announce_init();
 	}
 }
 
