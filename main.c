@@ -38,7 +38,7 @@
 #include "announce.h"
 #include "interface.h"
 
-char *iface_name = "eth0";
+static char *iface_name = "eth0";
 
 int
 main(int argc, char **argv)
