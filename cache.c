@@ -340,15 +340,12 @@ cache_answer(struct interface *iface, uint8_t *base, int blen, char *name, struc
 void
 cache_dump_records(struct blob_buf *buf, const char *name)
 {
-	struct cache_record *r, *q = avl_find_element(&records, name, r, avl);
+	struct cache_record *r, *last, *next;
 	const char *txt;
 	char buffer[INET6_ADDRSTRLEN];
 
-	if (!q)
-		return;
-
-	do {
-		r = q;
+	last = avl_last_element(&records, last, avl);
+	for (r = avl_find_element(&records, name, r, avl); r; r = next) {
 		switch (r->type) {
 		case TYPE_TXT:
 			if (r->txt && strlen(r->txt)) {
@@ -375,6 +372,12 @@ cache_dump_records(struct blob_buf *buf, const char *name)
 				blobmsg_add_string(buf, "ipv6", buffer);
 			break;
 		}
-		q = avl_next_element(r, avl);
-	} while (q && !strcmp(r->record, q->record));
+
+		if (r == last)
+			break;
+
+		next = avl_next_element(r, avl);
+		if (strcmp(r->record, next->record) != 0)
+			break;
+	}
 }
