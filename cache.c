@@ -226,8 +226,7 @@ cache_answer(struct interface *iface, uint8_t *base, int blen, char *name, struc
 	char *name_buf;
 	void *rdata_ptr, *txt_ptr;
 	int host_len = 0;
-
-	static char rdata_buffer[MAX_DATA_LEN + 1];
+	static char *rdata_buffer = (char *) mdns_buf;
 
 	if (!(a->class & CLASS_IN))
 		return;
