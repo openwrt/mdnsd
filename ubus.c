@@ -45,48 +45,6 @@ mdns_scan(struct ubus_context *ctx, struct ubus_object *obj,
 	return 0;
 }
 
-static void
-mdns_add_records(const char *name)
-{
-	struct cache_record *r, *q = avl_find_element(&records, name, r, avl);
-	const char *txt;
-	char buffer[MAX_NAME_LEN];
-
-	if (!q)
-		return;
-
-	do {
-		r = q;
-		switch (r->type) {
-		case TYPE_TXT:
-			if (r->txt && strlen(r->txt)) {
-				txt = r->txt;
-				do {
-					blobmsg_add_string(&b, "txt", txt);
-					txt = &txt[strlen(txt) + 1];
-				} while (*txt);
-			}
-			break;
-
-		case TYPE_SRV:
-			if (r->port)
-				blobmsg_add_u32(&b, "port", r->port);
-			break;
-
-		case TYPE_A:
-			if ((r->rdlength == 4) && inet_ntop(AF_INET, r->rdata, buffer, INET6_ADDRSTRLEN))
-				blobmsg_add_string(&b, "ipv4", buffer);
-			break;
-
-		case TYPE_AAAA:
-			if ((r->rdlength == 16) && inet_ntop(AF_INET6, r->rdata, buffer, INET6_ADDRSTRLEN))
-				blobmsg_add_string(&b, "ipv6", buffer);
-			break;
-		}
-		q = avl_next_element(r, avl);
-	} while (q && !strcmp(r->record, q->record));
-}
-
 static int
 mdns_browse(struct ubus_context *ctx, struct ubus_object *obj,
 		struct ubus_request_data *req, const char *method,
@@ -117,8 +75,8 @@ mdns_browse(struct ubus_context *ctx, struct ubus_object *obj,
 			*local = '\0';
 		c2 = blobmsg_open_table(&b, buffer);
 		strncat(buffer, ".local", MAX_NAME_LEN);
-		mdns_add_records(buffer);
-		mdns_add_records(s->entry);
+		cache_dump_records(&b, buffer);
+		cache_dump_records(&b, s->entry);
 		blobmsg_close_table(&b, c2);
 		q = avl_next_element(s, avl);
 		if (!q || avl_is_last(&entries, &s->avl) || strcmp(s->avl.key, q->avl.key)) {
@@ -151,8 +109,8 @@ mdns_hosts(struct ubus_context *ctx, struct ubus_object *obj,
 			*local = '\0';
 		c = blobmsg_open_table(&b, buffer);
 		strncat(buffer, ".local", MAX_NAME_LEN);
-		mdns_add_records(buffer);
-		mdns_add_records(s->entry);
+		cache_dump_records(&b, buffer);
+		cache_dump_records(&b, s->entry);
 		blobmsg_close_table(&b, c);
 	}
 	ubus_send_reply(ctx, req, b.head);

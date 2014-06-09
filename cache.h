@@ -16,6 +16,7 @@
 
 #include <libubox/avl.h>
 #include <libubox/list.h>
+#include <libubox/blob.h>
 
 #include "dns.h"
 
@@ -43,12 +44,13 @@ struct cache_record {
 
 extern struct avl_tree records, entries;
 
-extern int cache_init(void);
-extern void cache_scan(void);
-extern void cache_cleanup(void);
-extern void cache_answer(struct interface *iface, uint8_t *base, int blen,
-		char *name, struct dns_answer *a, uint8_t *rdata);
-extern int cache_host_is_known(char *record);
-extern char* cache_lookup_name(const char *key);
+int cache_init(void);
+void cache_scan(void);
+void cache_cleanup(void);
+void cache_answer(struct interface *iface, uint8_t *base, int blen,
+		  char *name, struct dns_answer *a, uint8_t *rdata);
+int cache_host_is_known(char *record);
+char *cache_lookup_name(const char *key);
+void cache_dump_records(struct blob_buf *buf, const char *name);
 
 #endif

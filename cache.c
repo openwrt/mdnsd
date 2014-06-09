@@ -337,3 +337,45 @@ cache_answer(struct interface *iface, uint8_t *base, int blen, char *name, struc
 	else
 		DBG(1, "A -> %s %s ttl:%d\n", dns_type_string(r->type), r->record, r->ttl);
 }
+
+void
+cache_dump_records(struct blob_buf *buf, const char *name)
+{
+	struct cache_record *r, *q = avl_find_element(&records, name, r, avl);
+	const char *txt;
+	char buffer[MAX_NAME_LEN];
+
+	if (!q)
+		return;
+
+	do {
+		r = q;
+		switch (r->type) {
+		case TYPE_TXT:
+			if (r->txt && strlen(r->txt)) {
+				txt = r->txt;
+				do {
+					blobmsg_add_string(buf, "txt", txt);
+					txt = &txt[strlen(txt) + 1];
+				} while (*txt);
+			}
+			break;
+
+		case TYPE_SRV:
+			if (r->port)
+				blobmsg_add_u32(buf, "port", r->port);
+			break;
+
+		case TYPE_A:
+			if ((r->rdlength == 4) && inet_ntop(AF_INET, r->rdata, buffer, INET6_ADDRSTRLEN))
+				blobmsg_add_string(buf, "ipv4", buffer);
+			break;
+
+		case TYPE_AAAA:
+			if ((r->rdlength == 16) && inet_ntop(AF_INET6, r->rdata, buffer, INET6_ADDRSTRLEN))
+				blobmsg_add_string(buf, "ipv6", buffer);
+			break;
+		}
+		q = avl_next_element(r, avl);
+	} while (q && !strcmp(r->record, q->record));
+}
