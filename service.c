@@ -328,4 +328,5 @@ void
 service_cleanup(void)
 {
 	vlist_flush(&services);
+	blob_buf_free(&b);
 }
