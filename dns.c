@@ -44,24 +44,22 @@ static char name_buffer[MAX_NAME_LEN + 1];
 const char*
 dns_type_string(uint16_t type)
 {
-	switch (type) {
-	case TYPE_A:
-		return "A";
+	static const struct {
+		uint16_t type;
+		char str[5];
+	} type_str[] = {
+		{ TYPE_A, "A" },
+		{ TYPE_AAAA, "AAAA" },
+		{ TYPE_PTR, "PTR" },
+		{ TYPE_TXT, "TXT" },
+		{ TYPE_SRV, "SRV" },
+		{ TYPE_ANY, "ANY" },
+	};
+	int i;
 
-	case TYPE_AAAA:
-		return "AAAA";
-
-	case TYPE_PTR:
-		return "PTR";
-
-	case TYPE_TXT:
-		return "TXT";
-
-	case TYPE_SRV:
-		return "SRV";
-
-	case TYPE_ANY:
-		return "ANY";
+	for (i = 0; i < ARRAY_SIZE(type_str); i++) {
+		if (type == type_str[i].type)
+			return type_str[i].str;
 	}
 
 	return "N/A";
