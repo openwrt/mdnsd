@@ -118,17 +118,14 @@ interface_socket_setup(struct interface *iface)
 	int yes = 1;
 	int no = 0;
 	struct sockaddr_in sa = { 0 };
-	struct in_addr in;
 	int fd = iface->fd.fd;
-
-	inet_aton(iface->ip, &in);
 
 	sa.sin_family = AF_INET;
 	sa.sin_port = htons(MCAST_PORT);
 	inet_pton(AF_INET, MCAST_ADDR, &sa.sin_addr);
 
 	memset(&mreq, 0, sizeof(mreq));
-	mreq.imr_address.s_addr = in.s_addr;
+	mreq.imr_address.s_addr = iface->v4_addr.s_addr;
 	mreq.imr_multiaddr = sa.sin_addr;
 	mreq.imr_ifindex = iface->ifindex;
 
@@ -214,50 +211,48 @@ iface_update_cb(struct vlist_tree *tree, struct vlist_node *node_new,
 	}
 }
 
-static const char*
-get_iface_ipv4(const char *ifname)
+static int
+get_iface_ipv4(struct interface *iface)
 {
-	static char buffer[INET_ADDRSTRLEN];
+	struct sockaddr_in *sin;
 	struct ifreq ir;
-	const char *ret;
-	int sock;
+	int sock, ret = -1;
 
 	sock = socket(AF_INET, SOCK_DGRAM, 0);
 	if (sock < 0)
-		return NULL;
+		return -1;
 
 	memset(&ir, 0, sizeof(struct ifreq));
-	strncpy(ir.ifr_name, ifname, sizeof(ir.ifr_name));
+	strncpy(ir.ifr_name, iface->name, sizeof(ir.ifr_name));
 
-	if (ioctl(sock, SIOCGIFADDR, &ir) < 0)
-		return NULL;
+	ret = ioctl(sock, SIOCGIFADDR, &ir);
+	if (ret < 0)
+		goto out;
 
-	ret = inet_ntop(AF_INET, &((struct sockaddr_in *) &ir.ifr_addr)->sin_addr, buffer, sizeof(buffer));
+	sin = (struct sockaddr_in *) &ir.ifr_addr;
+	memcpy(&iface->v4_addr, &sin->sin_addr, sizeof(iface->v4_addr));
+
+out:
 	close(sock);
-
 	return ret;
 }
 
 int interface_add(const char *name)
 {
 	struct interface *iface;
-	const char *ip_str;
-	char *name_buf, *ip_buf;
-
-	ip_str = get_iface_ipv4(name);
-	if (!ip_str)
-		return -1;
+	char *name_buf;
 
 	iface = calloc_a(sizeof(*iface),
-		&name_buf, strlen(name) + 1,
-		&ip_buf, strlen(ip_str) + 1);
+		&name_buf, strlen(name) + 1);
 
 	iface->name = strcpy(name_buf, name);
-	iface->ip = strcpy(ip_buf, ip_str);
 	iface->ifindex = if_nametoindex(name);
 	iface->fd.fd = -1;
 
 	if (iface->ifindex <= 0)
+		goto error;
+
+	if (get_iface_ipv4(iface))
 		goto error;
 
 	vlist_add(&interfaces, &iface->node, name);

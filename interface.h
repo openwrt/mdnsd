@@ -18,6 +18,8 @@
 #include <sys/types.h>
 #include <sys/uio.h>
 
+#include <arpa/inet.h>
+
 #include <libubox/uloop.h>
 #include <libubox/vlist.h>
 
@@ -31,7 +33,7 @@ struct interface {
 	struct uloop_timeout reconnect;
 
 	int ifindex;
-	const char *ip;
+	struct in_addr v4_addr;
 
 	struct uloop_timeout announce_timer;
 	int announce_state;

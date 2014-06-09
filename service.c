@@ -12,11 +12,8 @@
  */
 
 #include <sys/types.h>
-#include <netinet/in.h>
 #include <arpa/nameser.h>
 #include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
 
 #include <resolv.h>
 #include <glob.h>
@@ -116,17 +113,11 @@ service_send_a(struct interface *iface)
 	unsigned char buffer[MAX_NAME_LEN];
 	char *host = service_name("local");
 	int len = dn_comp(host, buffer, MAX_NAME_LEN, NULL, NULL);
-	struct in_addr in;
-
-	if (!inet_aton(iface->ip, &in)) {
-		fprintf(stderr, "%s is not valid\n", iface->ip);
-		return;
-	}
 
 	if (len < 1)
 		return;
 
-	dns_add_answer(TYPE_A, (uint8_t *) &in.s_addr, 4);
+	dns_add_answer(TYPE_A, (uint8_t *) &iface->v4_addr.s_addr, 4);
 }
 
 static void
