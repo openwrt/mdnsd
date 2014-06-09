@@ -39,7 +39,6 @@
 #include "service.h"
 #include "interface.h"
 
-char rdata_buffer[MAX_DATA_LEN + 1];
 static char name_buffer[MAX_NAME_LEN + 1];
 
 const char*

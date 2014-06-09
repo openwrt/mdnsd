@@ -68,8 +68,6 @@ struct dns_question {
 
 struct interface;
 
-extern char rdata_buffer[MAX_DATA_LEN + 1];
-
 void dns_send_question(struct interface *iface, const char *question, int type);
 void dns_init_answer(void);
 void dns_add_answer(int type, const uint8_t *rdata, uint16_t rdlength);
