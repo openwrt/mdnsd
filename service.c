@@ -83,20 +83,7 @@ service_name(const char *domain)
 }
 
 static void
-service_add_ptr(struct service *s)
-{
-	unsigned char buffer[MAX_NAME_LEN];
-	const char *host = service_name(s->service);
-	int len = dn_comp(host, buffer, MAX_NAME_LEN, NULL, NULL);
-
-	if (len < 1)
-		return;
-
-	dns_add_answer(TYPE_PTR, buffer, len);
-}
-
-static void
-service_add_ptr_c(const char *host)
+service_add_ptr(const char *host)
 {
 	unsigned char buffer[MAX_NAME_LEN];
 	int len = dn_comp(host, buffer, MAX_NAME_LEN, NULL, NULL);
@@ -186,7 +173,7 @@ service_reply(struct interface *iface, const char *match)
 			continue;
 
 		dns_init_answer();
-		service_add_ptr(s);
+		service_add_ptr(service_name(s->service));
 		dns_send_answer(iface, service);
 
 		dns_init_answer();
@@ -222,7 +209,7 @@ service_announce_services(struct interface *iface, const char *service)
 			continue;
 		s->t = 0;
 		dns_init_answer();
-		service_add_ptr_c(s->service);
+		service_add_ptr(s->service);
 		if (tcp)
 			dns_send_answer(iface, sdtcp);
 		else
