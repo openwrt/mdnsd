@@ -75,14 +75,3 @@ void get_hostname(void)
 	snprintf(mdns_hostname, sizeof(mdns_hostname), "%s", utsname.nodename);
 	snprintf(mdns_hostname_local, sizeof(mdns_hostname_local), "%s.local", utsname.nodename);
 }
-
-void*
-memdup(const void *d, int l)
-{
-	void *r = malloc(l);
-	if (!r)
-		return NULL;
-	memcpy(r, d, l);
-	return r;
-}
-

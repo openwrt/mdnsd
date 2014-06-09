@@ -40,6 +40,7 @@
 #include "interface.h"
 
 static char name_buffer[MAX_NAME_LEN + 1];
+static struct blob_buf ans_buf;
 
 const char*
 dns_type_string(uint16_t type)
@@ -112,25 +113,29 @@ struct dns_reply {
 	char *buffer;
 };
 
-#define MAX_ANSWER	8
-static struct dns_reply dns_reply[1 + (MAX_ANSWER * 3)];
 static int dns_answer_cnt;
 
 void
 dns_init_answer(void)
 {
 	dns_answer_cnt = 0;
+	blob_buf_init(&ans_buf, 0);
 }
 
 void
 dns_add_answer(int type, const uint8_t *rdata, uint16_t rdlength)
 {
-	struct dns_reply *a = &dns_reply[dns_answer_cnt];
-	if (dns_answer_cnt == MAX_ANSWER)
-		return;
-	a->rdata = memdup(rdata, rdlength);
-	a->type = type;
-	a->rdlength = rdlength;
+	struct blob_attr *attr;
+	struct dns_answer *a;
+
+	attr = blob_new(&ans_buf, 0, sizeof(*a) + rdlength);
+	a = blob_data(attr);
+	a->type = cpu_to_be16(type);
+	a->class = cpu_to_be16(1);
+	a->ttl = cpu_to_be32(announce_ttl);
+	a->rdlength = cpu_to_be16(rdlength);
+	memcpy(a + 1, rdata, rdlength);
+
 	dns_answer_cnt++;
 }
 
@@ -138,9 +143,11 @@ void
 dns_send_answer(struct interface *iface, const char *answer)
 {
 	uint8_t buffer[256];
+	struct blob_attr *attr;
 	struct dns_header h = { 0 };
 	struct iovec *iov;
-	int len, i;
+	int answer_len, rem;
+	int n_iov = 0;
 
 	if (!dns_answer_cnt)
 		return;
@@ -148,44 +155,32 @@ dns_send_answer(struct interface *iface, const char *answer)
 	h.answers = __cpu_to_be16(dns_answer_cnt);
 	h.flags = __cpu_to_be16(0x8400);
 
-	iov = alloca(sizeof(struct iovec) * ((dns_answer_cnt * 3) + 1));
-	iov[0].iov_base = &h;
-	iov[0].iov_len = sizeof(struct dns_header);
+	iov = alloca(sizeof(struct iovec) * ((dns_answer_cnt * 2) + 1));
 
-	for (i = 0; i < dns_answer_cnt; i++) {
-		struct dns_answer *a = &dns_reply[i].a;
-		int id = (i * 3) + 1;
+	iov[n_iov].iov_base = &h;
+	iov[n_iov].iov_len = sizeof(struct dns_header);
+	n_iov++;
 
-		memset(a, 0, sizeof(*a));
-		a->type = __cpu_to_be16(dns_reply[i].type);
-		a->class = __cpu_to_be16(1);
-		a->ttl = __cpu_to_be32(announce_ttl);
-		a->rdlength = __cpu_to_be16(dns_reply[i].rdlength);
+	answer_len = dn_comp(answer, buffer, sizeof(buffer), NULL, NULL);
+	if (answer_len < 1)
+		return;
 
-		len = dn_comp(answer, buffer, sizeof(buffer), NULL, NULL);
-		if (len < 1)
-			return;
+	blob_for_each_attr(attr, ans_buf.head, rem) {
+		struct dns_answer *a = blob_data(attr);
 
-		dns_reply[i].buffer = iov[id].iov_base = memdup(buffer, len);
-		iov[id].iov_len = len;
+		iov[n_iov].iov_base = buffer;
+		iov[n_iov].iov_len = answer_len;
+		n_iov++;
 
-		iov[id + 1].iov_base = a;
-		iov[id + 1].iov_len = sizeof(struct dns_answer);
+		iov[n_iov].iov_base = blob_data(attr);
+		iov[n_iov].iov_len = blob_len(attr);
+		n_iov++;
 
-		iov[id + 2].iov_base = dns_reply[i].rdata;
-		iov[id + 2].iov_len = dns_reply[i].rdlength;
-
-		DBG(1, "A <- %s %s\n", dns_type_string(dns_reply[i].type), answer);
+		DBG(1, "A <- %s %s\n", dns_type_string(be16_to_cpu(a->type)), answer);
 	}
 
-	if (interface_send_packet(iface, iov, (dns_answer_cnt * 3) + 1) < 0)
+	if (interface_send_packet(iface, iov, n_iov) < 0)
 		fprintf(stderr, "failed to send question\n");
-
-	for (i = 0; i < dns_answer_cnt; i++) {
-		free(dns_reply[i].buffer);
-		free(dns_reply[i].rdata);
-	}
-	dns_answer_cnt = 0;
 }
 
 static int
