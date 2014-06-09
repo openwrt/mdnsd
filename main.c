@@ -89,6 +89,7 @@ main(int argc, char **argv)
 
 	cache_cleanup();
 	service_cleanup();
+	vlist_flush(&interfaces);
 
 	return 0;
 }
