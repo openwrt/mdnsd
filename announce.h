@@ -14,7 +14,10 @@
 #ifndef _ANNOUNCE_H__
 #define _ANNOUNCE_H__
 
+struct interface;
 extern int announce_ttl;
-extern void announce_init(void);
+
+void announce_init(struct interface *iface);
+void announce_free(struct interface *iface);
 
 #endif

@@ -184,7 +184,7 @@ reconnect_socket(struct uloop_timeout *timeout)
 		uloop_fd_add(&cur_iface->fd, ULOOP_READ);
 		sleep(5);
 		dns_send_question(cur_iface, "_services._dns-sd._udp.local", TYPE_PTR);
-		announce_init();
+		announce_init(cur_iface);
 	}
 }
 

@@ -32,6 +32,9 @@ struct interface {
 
 	int ifindex;
 	const char *ip;
+
+	struct uloop_timeout announce_timer;
+	int announce_state;
 };
 
 int interface_add(const char *name);

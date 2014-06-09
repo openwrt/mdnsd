@@ -35,29 +35,28 @@ enum {
 	STATE_ANNOUNCE,
 };
 
-static struct uloop_timeout announce;
-static int announce_state;
 int announce_ttl = 75 * 60;
 
 static void
 announce_timer(struct uloop_timeout *timeout)
 {
+	struct interface *iface = container_of(timeout, struct interface, announce_timer);
 	char host[256];
 
 	snprintf(host, sizeof(host), "%s.local", hostname);
 
-	switch (announce_state) {
+	switch (iface->announce_state) {
 		case STATE_PROBE1:
 		case STATE_PROBE2:
 		case STATE_PROBE3:
-			dns_send_question(cur_iface, host, TYPE_ANY);
+			dns_send_question(iface, host, TYPE_ANY);
 			uloop_timeout_set(timeout, 250);
-			announce_state++;
+			iface->announce_state++;
 			break;
 
 		case STATE_PROBE_WAIT:
 			uloop_timeout_set(timeout, 500);
-			announce_state++;
+			iface->announce_state++;
 			break;
 
 		case STATE_PROBE_END:
@@ -65,19 +64,25 @@ announce_timer(struct uloop_timeout *timeout)
 				fprintf(stderr, "the host %s already exists. stopping announce service\n", host);
 				return;
 			}
-			announce_state++;
+			iface->announce_state++;
 
 		case STATE_ANNOUNCE:
-			service_announce(cur_iface);
+			service_announce(iface);
 			uloop_timeout_set(timeout, announce_ttl * 800);
 			break;
 	}
 }
 
 void
-announce_init(void)
+announce_init(struct interface *iface)
 {
-	announce_state = STATE_PROBE1;
-	announce.cb = announce_timer;
-	uloop_timeout_set(&announce, 100);
+	iface->announce_state = STATE_PROBE1;
+	iface->announce_timer.cb = announce_timer;
+	uloop_timeout_set(&iface->announce_timer, 100);
+}
+
+void
+announce_free(struct interface *iface)
+{
+	uloop_timeout_cancel(&iface->announce_timer);
 }
