@@ -27,14 +27,14 @@
 #include <stdio.h>
 #include <errno.h>
 
+#include <libubox/usock.h>
+#include <libubox/uloop.h>
 #include <libubox/avl-cmp.h>
 #include <libubox/utils.h>
 #include "interface.h"
 #include "util.h"
 #include "dns.h"
 #include "announce.h"
-
-struct interface *cur_iface = NULL;
 
 int
 interface_send_packet(struct interface *iface, struct iovec *iov, int iov_len)
@@ -71,22 +71,76 @@ interface_send_packet(struct interface *iface, struct iovec *iov, int iov_len)
 	return sendmsg(fd, &m, 0);
 }
 
-static void interface_free(struct interface *iface)
+static void interface_close(struct interface *iface)
 {
-	if (cur_iface == iface)
-		cur_iface = NULL;
+	if (iface->fd.fd < 0)
+		return;
 
 	announce_free(iface);
-	if (iface->fd.fd >= 0) {
-		uloop_fd_delete(&iface->fd);
-		close(iface->fd.fd);
-	}
+	uloop_fd_delete(&iface->fd);
+	close(iface->fd.fd);
+	iface->fd.fd = -1;
+}
+
+static void interface_free(struct interface *iface)
+{
+	interface_close(iface);
 	free(iface);
 }
 
+static void
+read_socket(struct uloop_fd *u, unsigned int events)
+{
+	struct interface *iface = container_of(u, struct interface, fd);
+	static uint8_t buffer[8 * 1024];
+	int len;
+
+	if (u->eof) {
+		interface_close(iface);
+		uloop_timeout_set(&iface->reconnect, 1000);
+		return;
+	}
+
+	len = read(u->fd, buffer, sizeof(buffer));
+	if (len < 1) {
+		fprintf(stderr, "read failed: %s\n", strerror(errno));
+		return;
+	}
+
+	dns_handle_packet(iface, buffer, len);
+}
+
+static void
+reconnect_socket(struct uloop_timeout *timeout)
+{
+	struct interface *iface = container_of(timeout, struct interface, reconnect);
+
+	iface->fd.fd = usock(USOCK_UDP | USOCK_SERVER | USOCK_NONBLOCK, MCAST_ADDR, "5353");
+	if (iface->fd.fd < 0) {
+		fprintf(stderr, "failed to add listener: %s\n", strerror(errno));
+		goto retry;
+	}
+
+	if (interface_socket_setup(iface)) {
+		iface->fd.fd = -1;
+		goto retry;
+	}
+
+	uloop_fd_add(&iface->fd, ULOOP_READ);
+	dns_send_question(iface, "_services._dns-sd._udp.local", TYPE_PTR);
+	announce_init(iface);
+	return;
+
+retry:
+	uloop_timeout_set(timeout, 1000);
+}
+
+
 static void interface_start(struct interface *iface)
 {
-	cur_iface = iface;
+	iface->fd.cb = read_socket;
+	iface->reconnect.cb = reconnect_socket;
+	uloop_timeout_set(&iface->reconnect, 100);
 }
 
 static void

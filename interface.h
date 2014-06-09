@@ -22,13 +22,13 @@
 #include <libubox/vlist.h>
 
 extern struct vlist_tree interfaces;
-extern struct interface *cur_iface;
 
 struct interface {
 	struct vlist_node node;
 
 	const char *name;
 	struct uloop_fd fd;
+	struct uloop_timeout reconnect;
 
 	int ifindex;
 	const char *ip;
