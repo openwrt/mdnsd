@@ -42,7 +42,7 @@
 #include "interface.h"
 
 static struct uloop_timeout cache_gc;
-struct avl_tree records, entries, hosts;
+struct avl_tree records, entries;
 
 static void
 cache_record_free(struct cache_record *r)
