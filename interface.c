@@ -110,57 +110,8 @@ read_socket(struct uloop_fd *u, unsigned int events)
 	dns_handle_packet(iface, buffer, len);
 }
 
-static void
-reconnect_socket(struct uloop_timeout *timeout)
-{
-	struct interface *iface = container_of(timeout, struct interface, reconnect);
-
-	iface->fd.fd = usock(USOCK_UDP | USOCK_SERVER | USOCK_NONBLOCK, MCAST_ADDR, "5353");
-	if (iface->fd.fd < 0) {
-		fprintf(stderr, "failed to add listener: %s\n", strerror(errno));
-		goto retry;
-	}
-
-	if (interface_socket_setup(iface)) {
-		iface->fd.fd = -1;
-		goto retry;
-	}
-
-	uloop_fd_add(&iface->fd, ULOOP_READ);
-	dns_send_question(iface, "_services._dns-sd._udp.local", TYPE_PTR);
-	announce_init(iface);
-	return;
-
-retry:
-	uloop_timeout_set(timeout, 1000);
-}
-
-
-static void interface_start(struct interface *iface)
-{
-	iface->fd.cb = read_socket;
-	iface->reconnect.cb = reconnect_socket;
-	uloop_timeout_set(&iface->reconnect, 100);
-}
-
-static void
-iface_update_cb(struct vlist_tree *tree, struct vlist_node *node_new,
-		struct vlist_node *node_old)
-{
-	struct interface *iface;
-
-	if (node_old) {
-		iface = container_of(node_old, struct interface, node);
-		interface_free(iface);
-	}
-
-	if (node_new) {
-		iface = container_of(node_new, struct interface, node);
-		interface_start(iface);
-	}
-}
-
-int interface_socket_setup(struct interface *iface)
+static int
+interface_socket_setup(struct interface *iface)
 {
 	struct ip_mreqn mreq;
 	uint8_t ttl = 255;
@@ -211,6 +162,56 @@ int interface_socket_setup(struct interface *iface)
 		fprintf(stderr, "ioctl failed: IP_MULTICAST_LOOP\n");
 
 	return 0;
+}
+
+static void
+reconnect_socket(struct uloop_timeout *timeout)
+{
+	struct interface *iface = container_of(timeout, struct interface, reconnect);
+
+	iface->fd.fd = usock(USOCK_UDP | USOCK_SERVER | USOCK_NONBLOCK, MCAST_ADDR, "5353");
+	if (iface->fd.fd < 0) {
+		fprintf(stderr, "failed to add listener: %s\n", strerror(errno));
+		goto retry;
+	}
+
+	if (interface_socket_setup(iface)) {
+		iface->fd.fd = -1;
+		goto retry;
+	}
+
+	uloop_fd_add(&iface->fd, ULOOP_READ);
+	dns_send_question(iface, "_services._dns-sd._udp.local", TYPE_PTR);
+	announce_init(iface);
+	return;
+
+retry:
+	uloop_timeout_set(timeout, 1000);
+}
+
+
+static void interface_start(struct interface *iface)
+{
+	iface->fd.cb = read_socket;
+	iface->reconnect.cb = reconnect_socket;
+	uloop_timeout_set(&iface->reconnect, 100);
+}
+
+static void
+iface_update_cb(struct vlist_tree *tree, struct vlist_node *node_new,
+		struct vlist_node *node_old)
+{
+	struct interface *iface;
+
+	if (node_old) {
+		iface = container_of(node_old, struct interface, node);
+		interface_free(iface);
+	}
+
+	if (node_new) {
+		iface = container_of(node_new, struct interface, node);
+		interface_start(iface);
+	}
 }
 
 static const char*

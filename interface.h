@@ -39,6 +39,5 @@ struct interface {
 
 int interface_add(const char *name);
 int interface_send_packet(struct interface *iface, struct iovec *iov, int iov_len);
-int interface_socket_setup(struct interface *iface);
 
 #endif
