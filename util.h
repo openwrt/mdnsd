@@ -31,7 +31,6 @@ extern char mdns_hostname_local[HOSTNAME_LEN + 6];
 
 void *memdup(const void *d, int l);
 
-extern void signal_setup(void);
 extern void get_hostname(void);
 extern uint32_t rand_time_delta(uint32_t t);
 

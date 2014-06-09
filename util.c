@@ -39,20 +39,6 @@ int debug = 0;
 char mdns_hostname[HOSTNAME_LEN];
 char mdns_hostname_local[HOSTNAME_LEN + 6];
 
-static void
-signal_shutdown(int signal)
-{
-	uloop_end();
-}
-
-void
-signal_setup(void)
-{
-	signal(SIGPIPE, SIG_IGN);
-	signal(SIGTERM, signal_shutdown);
-	signal(SIGKILL, signal_shutdown);
-}
-
 uint32_t
 rand_time_delta(uint32_t t)
 {

@@ -40,6 +40,12 @@
 
 static char *iface_name = "eth0";
 
+static void
+signal_shutdown(int signal)
+{
+	uloop_end();
+}
+
 int
 main(int argc, char **argv)
 {
@@ -73,7 +79,9 @@ main(int argc, char **argv)
 		return -1;
 	}
 
-	signal_setup();
+	signal(SIGPIPE, SIG_IGN);
+	signal(SIGTERM, signal_shutdown);
+	signal(SIGKILL, signal_shutdown);
 
 	if (cache_init())
 		return -1;
