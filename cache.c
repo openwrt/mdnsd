@@ -116,10 +116,12 @@ void cache_cleanup(void)
 void
 cache_scan(void)
 {
+	struct interface *iface;
 	struct cache_entry *s;
 
-	avl_for_each_element(&entries, s, avl)
-		dns_send_question(cur_iface, s->entry, TYPE_PTR);
+	vlist_for_each_element(&interfaces, iface, node)
+		avl_for_each_element(&entries, s, avl)
+			dns_send_question(iface, s->entry, TYPE_PTR);
 }
 
 static struct cache_entry*
