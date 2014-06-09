@@ -42,7 +42,8 @@
 #include "interface.h"
 
 static struct uloop_timeout cache_gc;
-struct avl_tree records, entries;
+struct avl_tree entries;
+static AVL_TREE(records, avl_strcmp, true, NULL);
 
 static void
 cache_record_free(struct cache_record *r)
@@ -93,7 +94,6 @@ int
 cache_init(void)
 {
 	avl_init(&entries, avl_strcmp, true, NULL);
-	avl_init(&records, avl_strcmp, true, NULL);
 
 	cache_gc.cb = cache_gc_timer;
 	uloop_timeout_set(&cache_gc, 10000);
