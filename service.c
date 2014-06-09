@@ -68,16 +68,15 @@ service_update(struct vlist_tree *tree, struct vlist_node *node_new,
 
 static struct blob_buf b;
 static VLIST_TREE(services, avl_strcmp, service_update, false, false);
-char *hostname = NULL;
 static char *sdudp =  "_services._dns-sd._udp.local";
 static char *sdtcp =  "_services._dns-sd._tcp.local";
 
-char *
+static const char *
 service_name(const char *domain)
 {
 	static char buffer[256];
 
-	snprintf(buffer, sizeof(buffer), "%s.%s", hostname, domain);
+	snprintf(buffer, sizeof(buffer), "%s.%s", mdns_hostname, domain);
 
 	return buffer;
 }
@@ -97,16 +96,14 @@ static void
 service_add_srv(struct service *s)
 {
 	struct dns_srv_data *sd = (struct dns_srv_data *) mdns_buf;
-	char *host = service_name("local");
 	int len = sizeof(*sd);
 
-	len += dn_comp(host, mdns_buf + len, sizeof(mdns_buf) - len, NULL, NULL);
+	len += dn_comp(mdns_hostname_local, mdns_buf + len, sizeof(mdns_buf) - len, NULL, NULL);
 	if (len <= sizeof(*sd))
 		return;
 
 	sd->port = cpu_to_be16(s->port);
 	dns_add_answer(TYPE_SRV, mdns_buf, len);
-	service_name(s->service);
 }
 
 #define TOUT_LOOKUP	60
@@ -132,7 +129,7 @@ service_reply_a(struct interface *iface, int type)
 
 	dns_init_answer();
 	dns_add_answer(TYPE_A, (uint8_t *) &iface->v4_addr.s_addr, 4);
-	dns_send_answer(iface, service_name("local"));
+	dns_send_answer(iface, mdns_hostname_local);
 }
 
 void
@@ -141,7 +138,7 @@ service_reply(struct interface *iface, const char *match)
 	struct service *s;
 
 	vlist_for_each_element(&services, s, node) {
-		char *host = service_name(s->service);
+		const char *host = service_name(s->service);
 		char *service = strstr(host, "._");
 
 		if (!s->active || !service || !service_timeout(s))
@@ -281,8 +278,7 @@ service_load(char *path)
 void
 service_init(void)
 {
-	if (!hostname)
-		hostname = get_hostname();
+	get_hostname();
 
 	vlist_update(&services);
 	service_load("/tmp/run/mdnsd/*");

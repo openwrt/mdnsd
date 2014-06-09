@@ -45,11 +45,8 @@ main(int argc, char **argv)
 {
 	int ch, ttl;
 
-	while ((ch = getopt(argc, argv, "h:t:i:d")) != -1) {
+	while ((ch = getopt(argc, argv, "t:i:d")) != -1) {
 		switch (ch) {
-		case 'h':
-			hostname = optarg;
-			break;
 		case 't':
 			ttl = atoi(optarg);
 			if (ttl > 0)

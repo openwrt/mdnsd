@@ -14,8 +14,6 @@
 #ifndef _SERVICE_H__
 #define _SERVICE_H__
 
-extern char *hostname;
-extern char *service_name(const char *domain);
 extern void service_init(void);
 extern void service_cleanup(void);
 extern void service_announce(struct interface *iface);

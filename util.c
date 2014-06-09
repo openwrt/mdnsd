@@ -36,6 +36,9 @@
 uint8_t mdns_buf[MDNS_BUF_LEN];
 int debug = 0;
 
+char mdns_hostname[HOSTNAME_LEN];
+char mdns_hostname_local[HOSTNAME_LEN + 6];
+
 static void
 signal_shutdown(int signal)
 {
@@ -73,15 +76,18 @@ rand_time_delta(uint32_t t)
 	return val;
 }
 
-char*
-get_hostname(void)
+void get_hostname(void)
 {
-	static struct utsname utsname;
+	struct utsname utsname;
+
+	mdns_hostname[0] = 0;
+	mdns_hostname_local[0] = 0;
 
 	if (uname(&utsname) < 0)
-		return NULL;
+		return;
 
-	return utsname.nodename;
+	snprintf(mdns_hostname, sizeof(mdns_hostname), "%s", utsname.nodename);
+	snprintf(mdns_hostname_local, sizeof(mdns_hostname_local), "%s.local", utsname.nodename);
 }
 
 void*

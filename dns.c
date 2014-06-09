@@ -334,8 +334,7 @@ parse_question(struct interface *iface, char *name, struct dns_question *q)
 
 	switch (q->type) {
 	case TYPE_ANY:
-		host = service_name("local");
-		if (!strcmp(name, host))
+		if (!strcmp(name, mdns_hostname_local))
 			service_reply(iface, NULL);
 		break;
 
@@ -349,7 +348,7 @@ parse_question(struct interface *iface, char *name, struct dns_question *q)
 		host = strstr(name, ".local");
 		if (host)
 			*host = '\0';
-		if (!strcmp(hostname, name))
+		if (!strcmp(mdns_hostname, name))
 			service_reply_a(iface, q->type);
 		break;
 	};

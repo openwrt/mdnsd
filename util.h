@@ -22,14 +22,17 @@
 	} while (0)
 
 #define MDNS_BUF_LEN	(8 * 1024)
+#define HOSTNAME_LEN	256
 
 extern int debug;
 extern uint8_t mdns_buf[MDNS_BUF_LEN];
+extern char mdns_hostname[HOSTNAME_LEN];
+extern char mdns_hostname_local[HOSTNAME_LEN + 6];
 
 void *memdup(const void *d, int l);
 
 extern void signal_setup(void);
-extern char* get_hostname(void);
+extern void get_hostname(void);
 extern uint32_t rand_time_delta(uint32_t t);
 
 #endif

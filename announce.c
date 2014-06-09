@@ -41,15 +41,12 @@ static void
 announce_timer(struct uloop_timeout *timeout)
 {
 	struct interface *iface = container_of(timeout, struct interface, announce_timer);
-	char host[256];
-
-	snprintf(host, sizeof(host), "%s.local", hostname);
 
 	switch (iface->announce_state) {
 		case STATE_PROBE1:
 		case STATE_PROBE2:
 		case STATE_PROBE3:
-			dns_send_question(iface, host, TYPE_ANY);
+			dns_send_question(iface, mdns_hostname_local, TYPE_ANY);
 			uloop_timeout_set(timeout, 250);
 			iface->announce_state++;
 			break;
@@ -60,8 +57,8 @@ announce_timer(struct uloop_timeout *timeout)
 			break;
 
 		case STATE_PROBE_END:
-			if (cache_host_is_known(host)) {
-				fprintf(stderr, "the host %s already exists. stopping announce service\n", host);
+			if (cache_host_is_known(mdns_hostname_local)) {
+				fprintf(stderr, "the host %s already exists. stopping announce service\n", mdns_hostname_local);
 				return;
 			}
 			iface->announce_state++;
