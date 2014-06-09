@@ -343,7 +343,7 @@ cache_dump_records(struct blob_buf *buf, const char *name)
 {
 	struct cache_record *r, *q = avl_find_element(&records, name, r, avl);
 	const char *txt;
-	char buffer[MAX_NAME_LEN];
+	char buffer[INET6_ADDRSTRLEN];
 
 	if (!q)
 		return;

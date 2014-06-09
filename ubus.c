@@ -20,6 +20,7 @@
 #include <libubox/avl.h>
 #include <libubox/uloop.h>
 
+#include "util.h"
 #include "ubus.h"
 #include "cache.h"
 #include "service.h"
@@ -51,10 +52,10 @@ mdns_browse(struct ubus_context *ctx, struct ubus_object *obj,
 		struct blob_attr *msg)
 {
 	struct cache_entry *s, *q;
-	char buffer[MAX_NAME_LEN];
+	char *buffer = (char *) mdns_buf;
 	void *c1 = NULL, *c2;
 
-        blob_buf_init(&b, 0);
+	blob_buf_init(&b, 0);
 	avl_for_each_element(&entries, s, avl) {
 		char *local;
 		if (*((char *) s->avl.key) != '_')
@@ -95,10 +96,10 @@ mdns_hosts(struct ubus_context *ctx, struct ubus_object *obj,
 		struct blob_attr *msg)
 {
 	struct cache_entry *s;
-	char buffer[MAX_NAME_LEN];
+	char *buffer = (char *) mdns_buf;
 	void *c;
 
-        blob_buf_init(&b, 0);
+	blob_buf_init(&b, 0);
 	avl_for_each_element(&entries, s, avl) {
 		char *local;
 		if (*((char *) s->avl.key) == '_')

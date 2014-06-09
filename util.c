@@ -33,6 +33,7 @@
 #include "dns.h"
 #include "util.h"
 
+uint8_t mdns_buf[MDNS_BUF_LEN];
 int debug = 0;
 
 static void

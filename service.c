@@ -85,35 +85,28 @@ service_name(const char *domain)
 static void
 service_add_ptr(const char *host)
 {
-	unsigned char buffer[MAX_NAME_LEN];
-	int len = dn_comp(host, buffer, MAX_NAME_LEN, NULL, NULL);
+	int len = dn_comp(host, mdns_buf, sizeof(mdns_buf), NULL, NULL);
 
 	if (len < 1)
 		return;
 
-	dns_add_answer(TYPE_PTR, buffer, len);
+	dns_add_answer(TYPE_PTR, mdns_buf, len);
 }
 
 static void
 service_add_srv(struct service *s)
 {
-	unsigned char buffer[MAX_NAME_LEN];
-	struct dns_srv_data *sd;
+	struct dns_srv_data *sd = (struct dns_srv_data *) mdns_buf;
 	char *host = service_name("local");
-	int len = dn_comp(host, buffer, MAX_NAME_LEN, NULL, NULL);
+	int len = sizeof(*sd);
 
-	if (len < 1)
-		return;
-
-	sd = calloc(1, len + sizeof(struct dns_srv_data));
-	if (!sd)
+	len += dn_comp(host, mdns_buf + len, sizeof(mdns_buf) - len, NULL, NULL);
+	if (len <= sizeof(*sd))
 		return;
 
 	sd->port = cpu_to_be16(s->port);
-	memcpy(&sd[1], buffer, len);
-	host = service_name(s->service);
-	dns_add_answer(TYPE_SRV, (uint8_t *) sd, len + sizeof(struct dns_srv_data));
-	free(sd);
+	dns_add_answer(TYPE_SRV, mdns_buf, len);
+	service_name(s->service);
 }
 
 #define TOUT_LOOKUP	60

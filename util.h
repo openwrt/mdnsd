@@ -14,12 +14,17 @@
 #ifndef _UTIL_H__
 #define _UTIL_H__
 
+#include <stdint.h>
+
 #define DBG(level, fmt, ...) do { \
 	if (debug >= level) \
 		fprintf(stderr, "mdnsd: %s (%d): " fmt, __func__, __LINE__, ## __VA_ARGS__); \
 	} while (0)
 
+#define MDNS_BUF_LEN	(8 * 1024)
+
 extern int debug;
+extern uint8_t mdns_buf[MDNS_BUF_LEN];
 
 void *memdup(const void *d, int l);
 
