@@ -43,77 +43,12 @@
 static struct uloop_timeout reconnect;
 char *iface_name = "eth0";
 
-static int
-parse_answer(struct interface *iface, uint8_t *buffer, int len, uint8_t **b, int *rlen, int cache)
-{
-	char *name = dns_consume_name(buffer, len, b, rlen);
-	struct dns_answer *a;
-	uint8_t *rdata;
-
-	if (!name) {
-		fprintf(stderr, "dropping: bad question\n");
-		return -1;
-	}
-
-	a = dns_consume_answer(b, rlen);
-	if (!a) {
-		fprintf(stderr, "dropping: bad question\n");
-		return -1;
-	}
-
-	rdata = *b;
-	if (a->rdlength > *rlen) {
-		fprintf(stderr, "dropping: bad question\n");
-		return -1;
-	}
-
-	*rlen -= a->rdlength;
-	*b += a->rdlength;
-
-	if (cache)
-		cache_answer(iface, buffer, len, name, a, rdata);
-
-	return 0;
-}
-
-static void
-parse_question(struct interface *iface, char *name, struct dns_question *q)
-{
-	char *host;
-
-	DBG(1, "Q -> %s %s\n", dns_type_string(q->type), name);
-
-	switch (q->type) {
-	case TYPE_ANY:
-		host = service_name("local");
-		if (!strcmp(name, host))
-			service_reply(iface, NULL);
-		break;
-
-	case TYPE_PTR:
-		service_announce_services(iface, name);
-		service_reply(iface, name);
-		break;
-
-	case TYPE_AAAA:
-	case TYPE_A:
-		host = strstr(name, ".local");
-		if (host)
-			*host = '\0';
-		if (!strcmp(hostname, name))
-			service_reply_a(iface, q->type);
-		break;
-	};
-}
-
 static void
 read_socket(struct uloop_fd *u, unsigned int events)
 {
 	struct interface *iface = container_of(u, struct interface, fd);
 	static uint8_t buffer[8 * 1024];
-	uint8_t *b = buffer;
-	struct dns_header *h;
-	int len, rlen;
+	int len;
 
 	if (u->eof) {
 		uloop_fd_delete(u);
@@ -123,48 +58,13 @@ read_socket(struct uloop_fd *u, unsigned int events)
 		return;
 	}
 
-	rlen = len = read(u->fd, buffer, sizeof(buffer));
+	len = read(u->fd, buffer, sizeof(buffer));
 	if (len < 1) {
 		fprintf(stderr, "read failed: %s\n", strerror(errno));
 		return;
 	}
 
-	h = dns_consume_header(&b, &rlen);
-	if (!h) {
-		fprintf(stderr, "dropping: bad header\n");
-		return;
-	}
-
-	while (h->questions-- > 0) {
-		char *name = dns_consume_name(buffer, len, &b, &rlen);
-		struct dns_question *q;
-
-		if (!name) {
-			fprintf(stderr, "dropping: bad name\n");
-			return;
-		}
-
-		q = dns_consume_question(&b, &rlen);
-		if (!q) {
-			fprintf(stderr, "dropping: bad question\n");
-			return;
-		}
-
-		if (!(h->flags & FLAG_RESPONSE))
-			parse_question(iface, name, q);
-	}
-
-	if (!(h->flags & FLAG_RESPONSE))
-		return;
-
-	while (h->answers-- > 0)
-		parse_answer(iface, buffer, len, &b, &rlen, 1);
-
-	while (h->authority-- > 0)
-		parse_answer(iface, buffer, len, &b, &rlen, 0);
-
-	while (h->additional-- > 0)
-		parse_answer(iface, buffer, len, &b, &rlen, 1);
+	dns_handle_packet(iface, buffer, len);
 }
 
 static void

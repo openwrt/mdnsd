@@ -35,6 +35,8 @@
 #include "announce.h"
 #include "util.h"
 #include "dns.h"
+#include "cache.h"
+#include "service.h"
 #include "interface.h"
 
 char rdata_buffer[MAX_DATA_LEN + 1];
@@ -211,7 +213,7 @@ scan_name(const uint8_t *buffer, int len)
 	return offset + 1;
 }
 
-struct dns_header*
+static struct dns_header*
 dns_consume_header(uint8_t **data, int *len)
 {
 	struct dns_header *h = (struct dns_header *) *data;
@@ -232,7 +234,7 @@ dns_consume_header(uint8_t **data, int *len)
 	return h;
 }
 
-struct dns_question*
+static struct dns_question*
 dns_consume_question(uint8_t **data, int *len)
 {
 	struct dns_question *q = (struct dns_question *) *data;
@@ -253,7 +255,7 @@ dns_consume_question(uint8_t **data, int *len)
 	return q;
 }
 
-struct dns_answer*
+static struct dns_answer*
 dns_consume_answer(uint8_t **data, int *len)
 {
 	struct dns_answer *a = (struct dns_answer *) *data;
@@ -272,7 +274,7 @@ dns_consume_answer(uint8_t **data, int *len)
 	return a;
 }
 
-char*
+static char *
 dns_consume_name(const uint8_t *base, int blen, uint8_t **data, int *len)
 {
 	int nlen = scan_name(*data, *len);
@@ -289,4 +291,112 @@ dns_consume_name(const uint8_t *base, int blen, uint8_t **data, int *len)
 	*data += nlen;
 
 	return name_buffer;
+}
+
+static int
+parse_answer(struct interface *iface, uint8_t *buffer, int len, uint8_t **b, int *rlen, int cache)
+{
+	char *name = dns_consume_name(buffer, len, b, rlen);
+	struct dns_answer *a;
+	uint8_t *rdata;
+
+	if (!name) {
+		fprintf(stderr, "dropping: bad question\n");
+		return -1;
+	}
+
+	a = dns_consume_answer(b, rlen);
+	if (!a) {
+		fprintf(stderr, "dropping: bad question\n");
+		return -1;
+	}
+
+	rdata = *b;
+	if (a->rdlength > *rlen) {
+		fprintf(stderr, "dropping: bad question\n");
+		return -1;
+	}
+
+	*rlen -= a->rdlength;
+	*b += a->rdlength;
+
+	if (cache)
+		cache_answer(iface, buffer, len, name, a, rdata);
+
+	return 0;
+}
+
+static void
+parse_question(struct interface *iface, char *name, struct dns_question *q)
+{
+	char *host;
+
+	DBG(1, "Q -> %s %s\n", dns_type_string(q->type), name);
+
+	switch (q->type) {
+	case TYPE_ANY:
+		host = service_name("local");
+		if (!strcmp(name, host))
+			service_reply(iface, NULL);
+		break;
+
+	case TYPE_PTR:
+		service_announce_services(iface, name);
+		service_reply(iface, name);
+		break;
+
+	case TYPE_AAAA:
+	case TYPE_A:
+		host = strstr(name, ".local");
+		if (host)
+			*host = '\0';
+		if (!strcmp(hostname, name))
+			service_reply_a(iface, q->type);
+		break;
+	};
+}
+
+void
+dns_handle_packet(struct interface *iface, uint8_t *buffer, int len)
+{
+	struct dns_header *h;
+	uint8_t *b = buffer;
+	int rlen = len;
+
+	h = dns_consume_header(&b, &rlen);
+	if (!h) {
+		fprintf(stderr, "dropping: bad header\n");
+		return;
+	}
+
+	while (h->questions-- > 0) {
+		char *name = dns_consume_name(buffer, len, &b, &rlen);
+		struct dns_question *q;
+
+		if (!name) {
+			fprintf(stderr, "dropping: bad name\n");
+			return;
+		}
+
+		q = dns_consume_question(&b, &rlen);
+		if (!q) {
+			fprintf(stderr, "dropping: bad question\n");
+			return;
+		}
+
+		if (!(h->flags & FLAG_RESPONSE))
+			parse_question(iface, name, q);
+	}
+
+	if (!(h->flags & FLAG_RESPONSE))
+		return;
+
+	while (h->answers-- > 0)
+		parse_answer(iface, buffer, len, &b, &rlen, 1);
+
+	while (h->authority-- > 0)
+		parse_answer(iface, buffer, len, &b, &rlen, 0);
+
+	while (h->additional-- > 0)
+		parse_answer(iface, buffer, len, &b, &rlen, 1);
 }

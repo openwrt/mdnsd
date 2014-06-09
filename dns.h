@@ -14,6 +14,8 @@
 #ifndef _DNS_H__
 #define _DNS_H__
 
+#include <stdint.h>
+
 #define FLAG_RESPONSE		0x8000
 #define FLAG_AUTHORATIVE	0x0400
 
@@ -68,14 +70,11 @@ struct interface;
 
 extern char rdata_buffer[MAX_DATA_LEN + 1];
 
-extern void dns_send_question(struct interface *iface, const char *question, int type);
-extern void dns_init_answer(void);
-extern void dns_add_answer(int type, const uint8_t *rdata, uint16_t rdlength);
-extern void dns_send_answer(struct interface *iface, const char *answer);
-extern char* dns_consume_name(const uint8_t *base, int blen, uint8_t **data, int *len);
-extern struct dns_answer* dns_consume_answer(uint8_t **data, int *len);
-extern struct dns_question* dns_consume_question(uint8_t **data, int *len);
-extern struct dns_header* dns_consume_header(uint8_t **data, int *len);
-extern const char* dns_type_string(uint16_t type);
+void dns_send_question(struct interface *iface, const char *question, int type);
+void dns_init_answer(void);
+void dns_add_answer(int type, const uint8_t *rdata, uint16_t rdlength);
+void dns_send_answer(struct interface *iface, const char *answer);
+const char* dns_type_string(uint16_t type);
+void dns_handle_packet(struct interface *iface, uint8_t *buf, int len);
 
 #endif
