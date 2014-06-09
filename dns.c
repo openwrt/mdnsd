@@ -35,6 +35,7 @@
 #include "announce.h"
 #include "util.h"
 #include "dns.h"
+#include "interface.h"
 
 char rdata_buffer[MAX_DATA_LEN + 1];
 static char name_buffer[MAX_NAME_LEN + 1];
@@ -65,42 +66,8 @@ dns_type_string(uint16_t type)
 	return "N/A";
 }
 
-static int
-dns_send_packet(int fd, struct iovec *iov, int iov_len)
-{
-	static size_t cmsg_data[( CMSG_SPACE(sizeof(struct in_pktinfo)) / sizeof(size_t)) + 1];
-	static struct sockaddr_in a = {
-		.sin_family = AF_INET,
-		.sin_port = htons(MCAST_PORT),
-	};
-	static struct msghdr m = {
-		.msg_name = (struct sockaddr *) &a,
-		.msg_namelen = sizeof(a),
-		.msg_control = cmsg_data,
-		.msg_controllen = CMSG_LEN(sizeof(struct in_pktinfo)),
-	};
-	struct in_pktinfo *pkti;
-	struct cmsghdr *cmsg;
-
-	m.msg_iov = iov;
-	m.msg_iovlen = iov_len;
-
-	memset(cmsg_data, 0, sizeof(cmsg_data));
-	cmsg = CMSG_FIRSTHDR(&m);
-	cmsg->cmsg_len = m.msg_controllen;
-	cmsg->cmsg_level = IPPROTO_IP;
-	cmsg->cmsg_type = IP_PKTINFO;
-
-	pkti = (struct in_pktinfo*) CMSG_DATA(cmsg);
-	pkti->ipi_ifindex = iface_index;
-
-	a.sin_addr.s_addr = inet_addr(MCAST_ADDR);
-
-	return sendmsg(fd, &m, 0);
-}
-
 void
-dns_send_question(struct uloop_fd *u, const char *question, int type)
+dns_send_question(struct interface *iface, const char *question, int type)
 {
 	static struct dns_header h = {
 		.questions = cpu_to_be16(1),
@@ -131,7 +98,7 @@ dns_send_question(struct uloop_fd *u, const char *question, int type)
 
 	iov[1].iov_len = len;
 
-	if (dns_send_packet(u->fd, iov, ARRAY_SIZE(iov)) < 0)
+	if (interface_send_packet(iface, iov, ARRAY_SIZE(iov)) < 0)
 		fprintf(stderr, "failed to send question\n");
 	else
 		DBG(1, "Q <- %s %s\n", dns_type_string(type), question);
@@ -212,7 +179,7 @@ dns_send_answer(struct uloop_fd *u, const char *answer)
 		DBG(1, "A <- %s %s\n", dns_type_string(dns_reply[i].type), answer);
 	}
 
-	if (dns_send_packet(u->fd, iov, (dns_answer_cnt * 3) + 1) < 0)
+	if (interface_send_packet(cur_iface, iov, (dns_answer_cnt * 3) + 1) < 0)
 		fprintf(stderr, "failed to send question\n");
 
 	for (i = 0; i < dns_answer_cnt; i++) {

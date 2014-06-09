@@ -64,9 +64,11 @@ struct dns_question {
 	uint16_t class;
 } __attribute__((packed, aligned(2)));
 
+struct interface;
+
 extern char rdata_buffer[MAX_DATA_LEN + 1];
 
-extern void dns_send_question(struct uloop_fd *u, const char *question, int type);
+extern void dns_send_question(struct interface *iface, const char *question, int type);
 extern void dns_init_answer(void);
 extern void dns_add_answer(int type, const uint8_t *rdata, uint16_t rdlength);
 extern void dns_send_answer(struct uloop_fd *u, const char *answer);

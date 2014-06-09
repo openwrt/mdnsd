@@ -34,6 +34,7 @@
 #include "dns.h"
 #include "service.h"
 #include "util.h"
+#include "interface.h"
 
 enum {
 	SERVICE_PORT,
@@ -117,8 +118,8 @@ service_send_a(struct uloop_fd *u)
 	int len = dn_comp(host, buffer, MAX_NAME_LEN, NULL, NULL);
 	struct in_addr in;
 
-	if (!inet_aton(iface_ip, &in)) {
-		fprintf(stderr, "%s is not valid\n", iface_ip);
+	if (!inet_aton(cur_iface->ip, &in)) {
+		fprintf(stderr, "%s is not valid\n", cur_iface->ip);
 		return;
 	}
 

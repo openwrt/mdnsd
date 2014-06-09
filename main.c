@@ -38,11 +38,10 @@
 #include "cache.h"
 #include "service.h"
 #include "announce.h"
+#include "interface.h"
 
 static struct uloop_timeout reconnect;
 char *iface_name = "eth0";
-const char *iface_ip;
-int iface_index;
 
 static int
 parse_answer(struct uloop_fd *u, uint8_t *buffer, int len, uint8_t **b, int *rlen, int cache)
@@ -170,24 +169,21 @@ read_socket(struct uloop_fd *u, unsigned int events)
 static void
 reconnect_socket(struct uloop_timeout *timeout)
 {
-
-	if (iface_ip)
-		listener.fd = usock(USOCK_UDP | USOCK_SERVER | USOCK_NONBLOCK, MCAST_ADDR, "5353");
-
-	if (!iface_ip || listener.fd < 0) {
+	cur_iface->fd.fd = usock(USOCK_UDP | USOCK_SERVER | USOCK_NONBLOCK, MCAST_ADDR, "5353");
+	if (cur_iface->fd.fd < 0) {
 		fprintf(stderr, "failed to add listener: %s\n", strerror(errno));
 		uloop_timeout_set(&reconnect, 1000);
 	} else {
-		if (socket_setup(listener.fd, iface_ip)) {
+		if (interface_socket_setup(cur_iface)) {
 			uloop_timeout_set(&reconnect, 1000);
-			listener.fd = -1;
+			cur_iface->fd.fd = -1;
 			return;
 		}
 
-		uloop_fd_add(&listener, ULOOP_READ);
+		uloop_fd_add(&cur_iface->fd, ULOOP_READ);
 		sleep(5);
-		dns_send_question(&listener, "_services._dns-sd._udp.local", TYPE_PTR);
-		announce_init(&listener);
+		dns_send_question(cur_iface, "_services._dns-sd._udp.local", TYPE_PTR);
+		announce_init(&cur_iface->fd);
 	}
 }
 
@@ -220,21 +216,16 @@ main(int argc, char **argv)
 	if (!iface_name)
 		return -1;
 
-	iface_ip = get_iface_ipv4(iface_name);
+	uloop_init();
 
-	if (!iface_ip) {
-		fprintf(stderr, "failed to read ip for %s\n", iface_name);
+	if (interface_add(iface_name)) {
+		fprintf(stderr, "Failed to add interface %s\n", iface_name);
 		return -1;
 	}
 
-	iface_index = get_iface_index(iface_name);
-
-	if (!iface_index) {
-		fprintf(stderr, "failed to read index for %s\n", iface_name);
+	if (!cur_iface)
 		return -1;
-	}
 
-	fprintf(stderr, "interface %s has ip %s and index %d\n", iface_name, iface_ip, iface_index);
 	signal_setup();
 
 	if (cache_init())
@@ -242,10 +233,9 @@ main(int argc, char **argv)
 
 	service_init();
 
-	listener.cb = read_socket;
+	cur_iface->fd.cb = read_socket;
 	reconnect.cb = reconnect_socket;
 
-	uloop_init();
 	uloop_timeout_set(&reconnect, 100);
 	ubus_startup();
 	uloop_run();

@@ -22,6 +22,7 @@
 #include "util.h"
 #include "service.h"
 #include "announce.h"
+#include "interface.h"
 
 #define TTL_TIMEOUT	75
 
@@ -50,7 +51,7 @@ announce_timer(struct uloop_timeout *timeout)
 		case STATE_PROBE1:
 		case STATE_PROBE2:
 		case STATE_PROBE3:
-			dns_send_question(announce_fd, host, TYPE_ANY);
+			dns_send_question(cur_iface, host, TYPE_ANY);
 			uloop_timeout_set(timeout, 250);
 			announce_state++;
 			break;

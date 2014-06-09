@@ -34,7 +34,6 @@
 #include "util.h"
 
 int debug = 0;
-struct uloop_fd listener;
 
 static void
 signal_shutdown(int signal)
@@ -73,53 +72,6 @@ rand_time_delta(uint32_t t)
 	return val;
 }
 
-const char*
-get_iface_ipv4(const char *ifname)
-{
-	static char buffer[INET_ADDRSTRLEN];
-	struct ifreq ir;
-	const char *ret;
-	int sock;
-
-	sock = socket(AF_INET, SOCK_DGRAM, 0);
-	if (sock < 0)
-		return NULL;
-
-	memset(&ir, 0, sizeof(struct ifreq));
-
-	strncpy(ir.ifr_name, ifname, sizeof(ir.ifr_name));
-
-	if (ioctl(sock, SIOCGIFADDR, &ir) < 0)
-		return NULL;
-
-	ret = inet_ntop(AF_INET, &((struct sockaddr_in *) &ir.ifr_addr)->sin_addr, buffer, sizeof(buffer));
-	close(sock);
-
-	return ret;
-}
-
-int
-get_iface_index(const char *ifname)
-{
-	struct ifreq ir;
-	int sock;
-
-	sock = socket(AF_INET, SOCK_DGRAM, 0);
-	if (sock < 0)
-		return 0;
-
-	memset(&ir, 0, sizeof(struct ifreq));
-
-	strncpy(ir.ifr_name, ifname, sizeof(ir.ifr_name));
-
-	if (ioctl(sock, SIOCGIFINDEX, &ir) < 0)
-		return 0;
-
-	close(sock);
-
-	return ir.ifr_ifindex;
-}
-
 char*
 get_hostname(void)
 {
@@ -129,59 +81,6 @@ get_hostname(void)
 		return NULL;
 
 	return utsname.nodename;
-}
-
-int
-socket_setup(int fd, const char *ip)
-{
-	struct ip_mreqn mreq;
-	uint8_t ttl = 255;
-	int yes = 1;
-	int no = 0;
-	struct sockaddr_in sa = { 0 };
-	struct in_addr in;
-
-	inet_aton(iface_ip, &in);
-
-	sa.sin_family = AF_INET;
-	sa.sin_port = htons(MCAST_PORT);
-	inet_pton(AF_INET, MCAST_ADDR, &sa.sin_addr);
-
-	memset(&mreq, 0, sizeof(mreq));
-	mreq.imr_address.s_addr = in.s_addr;
-	mreq.imr_multiaddr = sa.sin_addr;
-	mreq.imr_ifindex = iface_index;
-
-	if (setsockopt(fd, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl)) < 0)
-		fprintf(stderr, "ioctl failed: IP_MULTICAST_TTL\n");
-
-	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) < 0)
-		fprintf(stderr, "ioctl failed: SO_REUSEADDR\n");
-
-	/* Some network drivers have issues with dropping membership of
-	 * mcast groups when the iface is down, but don't allow rejoining
-	 * when it comes back up. This is an ugly workaround
-	 * -- this was copied from avahi --
-	 */
-	setsockopt(fd, IPPROTO_IP, IP_DROP_MEMBERSHIP, &mreq, sizeof(mreq));
-
-	if (setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) < 0) {
-		fprintf(stderr, "failed to join multicast group: %s\n", strerror(errno));
-		close(fd);
-		fd = -1;
-		return -1;
-	}
-
-	if (setsockopt(fd, IPPROTO_IP, IP_RECVTTL, &yes, sizeof(yes)) < 0)
-		fprintf(stderr, "ioctl failed: IP_RECVTTL\n");
-
-	if (setsockopt(fd, IPPROTO_IP, IP_PKTINFO, &yes, sizeof(yes)) < 0)
-		fprintf(stderr, "ioctl failed: IP_PKTINFO\n");
-
-	if (setsockopt(fd, IPPROTO_IP, IP_MULTICAST_LOOP, &no, sizeof(no)) < 0)
-		fprintf(stderr, "ioctl failed: IP_MULTICAST_LOOP\n");
-
-	return 0;
 }
 
 void*

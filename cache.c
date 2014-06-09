@@ -39,6 +39,7 @@
 #include "cache.h"
 #include "util.h"
 #include "dns.h"
+#include "interface.h"
 
 static struct uloop_timeout cache_gc;
 struct avl_tree records, entries, hosts;
@@ -118,7 +119,7 @@ cache_scan(void)
 	struct cache_entry *s;
 
 	avl_for_each_element(&entries, s, avl)
-		dns_send_question(&listener, s->entry, TYPE_PTR);
+		dns_send_question(cur_iface, s->entry, TYPE_PTR);
 }
 
 static struct cache_entry*
@@ -152,7 +153,7 @@ cache_entry(struct uloop_fd *u, char *entry, int hlen, int ttl)
 	avl_insert(&entries, &s->avl);
 
 	if (!hlen)
-		dns_send_question(u, entry, TYPE_PTR);
+		dns_send_question(cur_iface, entry, TYPE_PTR);
 
 	return s;
 }
