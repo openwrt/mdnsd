@@ -95,19 +95,6 @@ service_add_ptr(const char *host)
 }
 
 static void
-service_send_a(struct interface *iface)
-{
-	unsigned char buffer[MAX_NAME_LEN];
-	char *host = service_name("local");
-	int len = dn_comp(host, buffer, MAX_NAME_LEN, NULL, NULL);
-
-	if (len < 1)
-		return;
-
-	dns_add_answer(TYPE_A, (uint8_t *) &iface->v4_addr.s_addr, 4);
-}
-
-static void
 service_add_srv(struct service *s)
 {
 	unsigned char buffer[MAX_NAME_LEN];
@@ -151,7 +138,7 @@ service_reply_a(struct interface *iface, int type)
 		return;
 
 	dns_init_answer();
-	service_send_a(iface);
+	dns_add_answer(TYPE_A, (uint8_t *) &iface->v4_addr.s_addr, 4);
 	dns_send_answer(iface, service_name("local"));
 }
 
@@ -186,9 +173,7 @@ service_reply(struct interface *iface, const char *match)
 	if (match)
 		return;
 
-	dns_init_answer();
-	service_send_a(iface);
-	dns_send_answer(iface, service_name("local"));
+	service_reply_a(iface, TYPE_A);
 }
 
 void
