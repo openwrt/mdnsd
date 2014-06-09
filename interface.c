@@ -32,6 +32,7 @@
 #include "interface.h"
 #include "util.h"
 #include "dns.h"
+#include "announce.h"
 
 struct interface *cur_iface = NULL;
 
@@ -75,6 +76,7 @@ static void interface_free(struct interface *iface)
 	if (cur_iface == iface)
 		cur_iface = NULL;
 
+	announce_free(iface);
 	if (iface->fd.fd >= 0) {
 		uloop_fd_delete(&iface->fd);
 		close(iface->fd.fd);
