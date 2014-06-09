@@ -59,7 +59,7 @@ mdns_browse(struct ubus_context *ctx, struct ubus_object *obj,
 		char *local;
 		if (*((char *) s->avl.key) != '_')
 			continue;
-		snprintf(buffer, MAX_NAME_LEN, s->avl.key);
+		snprintf(buffer, MAX_NAME_LEN, "%s", (const char *) s->avl.key);
 		local = strstr(buffer, ".local");
 		if (local)
 			*local = '\0';
@@ -69,7 +69,7 @@ mdns_browse(struct ubus_context *ctx, struct ubus_object *obj,
 		if (!c1) {
 			c1 = blobmsg_open_table(&b, buffer);
 		}
-		snprintf(buffer, MAX_NAME_LEN, s->entry);
+		snprintf(buffer, MAX_NAME_LEN, "%s", (const char *) s->entry);
 		local = strstr(buffer, "._");
 		if (local)
 			*local = '\0';
@@ -103,7 +103,7 @@ mdns_hosts(struct ubus_context *ctx, struct ubus_object *obj,
 		char *local;
 		if (*((char *) s->avl.key) == '_')
 			continue;
-		snprintf(buffer, MAX_NAME_LEN, s->entry);
+		snprintf(buffer, MAX_NAME_LEN, "%s", (const char *) s->entry);
 		local = strstr(buffer, "._");
 		if (local)
 			*local = '\0';
