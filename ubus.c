@@ -120,19 +120,19 @@ mdns_hosts(struct ubus_context *ctx, struct ubus_object *obj,
 	return UBUS_STATUS_OK;
 }
 
-static const struct blobmsg_policy iface_policy[] = {
+static const struct blobmsg_policy config_policy[] = {
 	{ "interfaces", BLOBMSG_TYPE_ARRAY },
 };
 
 static int
-mdns_set_interfaces(struct ubus_context *ctx, struct ubus_object *obj,
+mdns_set_config(struct ubus_context *ctx, struct ubus_object *obj,
 		    struct ubus_request_data *req, const char *method,
 		    struct blob_attr *msg)
 {
 	struct blob_attr *data, *cur;
 	int rem;
 
-	blobmsg_parse(iface_policy, 1, &data, blob_data(msg), blob_len(msg));
+	blobmsg_parse(config_policy, 1, &data, blob_data(msg), blob_len(msg));
 	if (!data)
 		return UBUS_STATUS_INVALID_ARGUMENT;
 
@@ -149,7 +149,7 @@ mdns_set_interfaces(struct ubus_context *ctx, struct ubus_object *obj,
 
 
 static const struct ubus_method mdns_methods[] = {
-	UBUS_METHOD("set_interfaces", mdns_set_interfaces, iface_policy),
+	UBUS_METHOD("set_config", mdns_set_config, config_policy),
 	UBUS_METHOD_NOARG("scan", mdns_scan),
 	UBUS_METHOD_NOARG("browse", mdns_browse),
 	UBUS_METHOD_NOARG("hosts", mdns_hosts),
