@@ -17,13 +17,14 @@
 #include <stdio.h>
 
 #include <libubus.h>
-#include <libubox/avl.h>
+#include <libubox/vlist.h>
 #include <libubox/uloop.h>
 
 #include "util.h"
 #include "ubus.h"
 #include "cache.h"
 #include "service.h"
+#include "interface.h"
 
 static struct ubus_auto_conn conn;
 static struct blob_buf b;
@@ -119,7 +120,36 @@ mdns_hosts(struct ubus_context *ctx, struct ubus_object *obj,
 	return UBUS_STATUS_OK;
 }
 
+static const struct blobmsg_policy iface_policy[] = {
+	{ "interfaces", BLOBMSG_TYPE_ARRAY },
+};
+
+static int
+mdns_set_interfaces(struct ubus_context *ctx, struct ubus_object *obj,
+		    struct ubus_request_data *req, const char *method,
+		    struct blob_attr *msg)
+{
+	struct blob_attr *data, *cur;
+	int rem;
+
+	blobmsg_parse(iface_policy, 1, &data, blob_data(msg), blob_len(msg));
+	if (!data)
+		return UBUS_STATUS_INVALID_ARGUMENT;
+
+	if (!blobmsg_check_attr_list(data, BLOBMSG_TYPE_STRING))
+		return UBUS_STATUS_INVALID_ARGUMENT;
+
+	vlist_update(&interfaces);
+	blobmsg_for_each_attr(cur, data, rem)
+		interface_add(blobmsg_data(cur));
+	vlist_flush(&interfaces);
+
+	return 0;
+}
+
+
 static const struct ubus_method mdns_methods[] = {
+	UBUS_METHOD("set_interfaces", mdns_set_interfaces, iface_policy),
 	UBUS_METHOD_NOARG("scan", mdns_scan),
 	UBUS_METHOD_NOARG("browse", mdns_browse),
 	UBUS_METHOD_NOARG("hosts", mdns_hosts),
