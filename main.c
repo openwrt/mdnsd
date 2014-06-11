@@ -38,8 +38,6 @@
 #include "announce.h"
 #include "interface.h"
 
-static char *iface_name = "eth0";
-
 static void
 signal_shutdown(int signal)
 {
@@ -50,6 +48,8 @@ int
 main(int argc, char **argv)
 {
 	int ch, ttl;
+
+	uloop_init();
 
 	while ((ch = getopt(argc, argv, "t:i:d")) != -1) {
 		switch (ch) {
@@ -64,19 +64,9 @@ main(int argc, char **argv)
 			debug++;
 			break;
 		case 'i':
-			iface_name = optarg;
+			interface_add(optarg);
 			break;
 		}
-	}
-
-	if (!iface_name)
-		return -1;
-
-	uloop_init();
-
-	if (interface_add(iface_name)) {
-		fprintf(stderr, "Failed to add interface %s\n", iface_name);
-		return -1;
 	}
 
 	signal(SIGPIPE, SIG_IGN);
