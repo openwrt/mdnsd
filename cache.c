@@ -126,14 +126,14 @@ cache_scan(void)
 static struct cache_entry*
 cache_entry(struct interface *iface, char *entry, int hlen, int ttl)
 {
-	struct cache_entry *s;
+	struct cache_entry *s, *t;
 	char *entry_buf;
 	char *host_buf;
 	char *type;
 
-	s = avl_find_element(&entries, entry, s, avl);
-	if (s)
-		return s;
+	avl_for_each_element_safe(&entries, s, avl, t)
+		if (!strcmp(s->entry, entry))
+			return s;
 
 	s = calloc_a(sizeof(*s),
 		&entry_buf, strlen(entry) + 1,
