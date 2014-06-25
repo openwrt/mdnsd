@@ -57,11 +57,6 @@ static const struct blobmsg_policy service_policy[__SERVICE_MAX] = {
 	[SERVICE_TXT] = { .name = "txt", .type = BLOBMSG_TYPE_ARRAY },
 };
 
-static const struct uci_blob_param_list service_attr_list = {
-	.n_params = __SERVICE_MAX,
-	.params = service_policy,
-};
-
 static void
 service_update(struct vlist_tree *tree, struct vlist_node *node_new,
 	       struct vlist_node *node_old);
