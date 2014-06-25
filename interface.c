@@ -40,10 +40,7 @@ int
 interface_send_packet(struct interface *iface, struct iovec *iov, int iov_len)
 {
 	static size_t cmsg_data[( CMSG_SPACE(sizeof(struct in_pktinfo)) / sizeof(size_t)) + 1];
-	static struct sockaddr_in a = {
-		.sin_family = AF_INET,
-		.sin_port = htons(MCAST_PORT),
-	};
+	static struct sockaddr_in a;
 	static struct msghdr m = {
 		.msg_name = (struct sockaddr *) &a,
 		.msg_namelen = sizeof(a),
@@ -54,6 +51,8 @@ interface_send_packet(struct interface *iface, struct iovec *iov, int iov_len)
 	struct cmsghdr *cmsg;
 	int fd = iface->fd.fd;
 
+	a.sin_family = AF_INET;
+	a.sin_port = htons(MCAST_PORT);
 	m.msg_iov = iov;
 	m.msg_iovlen = iov_len;
 

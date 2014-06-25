@@ -25,7 +25,6 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/nameser.h>
-#include <asm/byteorder.h>
 
 #include <libubus.h>
 #include <libubox/uloop.h>

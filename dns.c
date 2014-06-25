@@ -22,7 +22,6 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <asm/byteorder.h>
 #include <arpa/nameser.h>
 #include <resolv.h>
 #include <stdlib.h>
@@ -69,12 +68,8 @@ dns_type_string(uint16_t type)
 void
 dns_send_question(struct interface *iface, const char *question, int type)
 {
-	static struct dns_header h = {
-		.questions = cpu_to_be16(1),
-	};
-	static struct dns_question q = {
-		.class = cpu_to_be16(1),
-	};
+	static struct dns_header h;
+	static struct dns_question q;
 	static struct iovec iov[] = {
 		{
 			.iov_base = &h,
@@ -90,7 +85,9 @@ dns_send_question(struct interface *iface, const char *question, int type)
 	};
 	int len;
 
-	q.type = __cpu_to_be16(type);
+	h.questions = cpu_to_be16(1);
+	q.class = cpu_to_be16(1);
+	q.type = cpu_to_be16(type);
 
 	len = dn_comp(question, (void *) name_buffer, sizeof(name_buffer), NULL, NULL);
 	if (len < 1)
@@ -152,8 +149,8 @@ dns_send_answer(struct interface *iface, const char *answer)
 	if (!dns_answer_cnt)
 		return;
 
-	h.answers = __cpu_to_be16(dns_answer_cnt);
-	h.flags = __cpu_to_be16(0x8400);
+	h.answers = cpu_to_be16(dns_answer_cnt);
+	h.flags = cpu_to_be16(0x8400);
 
 	iov = alloca(sizeof(struct iovec) * ((dns_answer_cnt * 2) + 1));
 
@@ -216,7 +213,7 @@ dns_consume_header(uint8_t **data, int *len)
 		return NULL;
 
 	while (endianess--) {
-		*swap = __be16_to_cpu(*swap);
+		*swap = be16_to_cpu(*swap);
 		swap++;
 	}
 
@@ -237,7 +234,7 @@ dns_consume_question(uint8_t **data, int *len)
 		return NULL;
 
 	while (endianess--) {
-		*swap = __be16_to_cpu(*swap);
+		*swap = be16_to_cpu(*swap);
 		swap++;
 	}
 
@@ -255,10 +252,10 @@ dns_consume_answer(uint8_t **data, int *len)
 	if (*len < sizeof(struct dns_answer))
 		return NULL;
 
-	a->type = __be16_to_cpu(a->type);
-	a->class = __be16_to_cpu(a->class);
-	a->ttl = __be32_to_cpu(a->ttl);
-	a->rdlength = __be16_to_cpu(a->rdlength);
+	a->type = be16_to_cpu(a->type);
+	a->class = be16_to_cpu(a->class);
+	a->ttl = be32_to_cpu(a->ttl);
+	a->rdlength = be16_to_cpu(a->rdlength);
 
 	*len -= sizeof(struct dns_answer);
 	*data += sizeof(struct dns_answer);
