@@ -18,7 +18,6 @@
 #include <sys/stat.h>
 #include <sys/utsname.h>
 #include <net/if.h>
-#include <linux/sockios.h>
 #include <arpa/inet.h>
 
 #include <stdlib.h>

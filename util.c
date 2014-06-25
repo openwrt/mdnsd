@@ -16,8 +16,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/utsname.h>
-#include <linux/if.h>
-#include <linux/sockios.h>
 #include <arpa/inet.h>
 
 #include <unistd.h>
