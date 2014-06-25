@@ -167,7 +167,7 @@ cache_record_find(char *record, int type, int port, int rdlength, uint8_t *rdata
 	if (!l)
 		return NULL;
 
-	while (l && !avl_is_last(&records, &l->avl) && !strcmp(l->record, record)) {
+	while (l && !strcmp(l->record, record)) {
 		struct cache_record *r = l;
 
 		l = avl_next_element(l, avl);
