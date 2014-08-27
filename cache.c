@@ -274,7 +274,7 @@ cache_answer(struct interface *iface, uint8_t *base, int blen, char *name, struc
 			uint8_t v = *p;
 
 			*p = '\0';
-			if (v)
+			if (v && p + v < &rdata_buffer[rdlength])
 				p += v + 1;
 		} while (*p);
 		break;
