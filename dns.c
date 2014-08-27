@@ -380,11 +380,15 @@ dns_handle_packet(struct interface *iface, uint8_t *buffer, int len)
 		return;
 
 	while (h->answers-- > 0)
-		parse_answer(iface, buffer, len, &b, &rlen, 1);
+		if (parse_answer(iface, buffer, len, &b, &rlen, 1))
+			return;
 
 	while (h->authority-- > 0)
-		parse_answer(iface, buffer, len, &b, &rlen, 0);
+		if (parse_answer(iface, buffer, len, &b, &rlen, 1))
+			return;
 
 	while (h->additional-- > 0)
-		parse_answer(iface, buffer, len, &b, &rlen, 1);
+		if (parse_answer(iface, buffer, len, &b, &rlen, 1))
+			return;
+
 }
