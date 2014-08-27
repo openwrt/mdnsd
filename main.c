@@ -65,6 +65,8 @@ main(int argc, char **argv)
 		case 'i':
 			interface_add(optarg);
 			break;
+		default:
+			return -1;
 		}
 	}
 
