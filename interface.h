@@ -29,14 +29,19 @@ struct interface {
 	struct vlist_node node;
 
 	const char *name;
+	char *id;
 	struct uloop_fd fd;
 	struct uloop_timeout reconnect;
 
+	int v6;
 	int ifindex;
 	struct in_addr v4_addr;
+	struct in6_addr v6_addr;
 
 	struct uloop_timeout announce_timer;
 	int announce_state;
+
+	char *mcast_addr;
 };
 
 int interface_add(const char *name);

@@ -29,6 +29,7 @@
 #define IS_COMPRESSED(x)	((x & 0xc0) == 0xc0)
 
 #define MCAST_ADDR		"224.0.0.251"
+#define MCAST_ADDR6		"ff02::fb"
 #define MCAST_PORT		5353
 
 #define CLASS_FLUSH		0x8000
