@@ -33,6 +33,7 @@
 #include "service.h"
 #include "util.h"
 #include "interface.h"
+#include "announce.h"
 
 enum {
 	SERVICE_PORT,
@@ -85,7 +86,7 @@ service_add_ptr(const char *host)
 	if (len < 1)
 		return;
 
-	dns_add_answer(TYPE_PTR, mdns_buf, len);
+	dns_add_answer(TYPE_PTR, mdns_buf, len, announce_ttl);
 }
 
 static void
@@ -99,7 +100,7 @@ service_add_srv(struct service *s)
 		return;
 
 	sd->port = cpu_to_be16(s->port);
-	dns_add_answer(TYPE_SRV, mdns_buf, len);
+	dns_add_answer(TYPE_SRV, mdns_buf, len, announce_ttl);
 }
 
 #define TOUT_LOOKUP	60
@@ -135,7 +136,7 @@ service_reply_a(struct interface *iface, int type)
 			sa = (struct sockaddr_in *) ifa->ifa_addr;
 			addr = inet_ntoa(sa->sin_addr);
 			printf("Interface: %s\tAddress4: %s\n", ifa->ifa_name, addr);
-			dns_add_answer(TYPE_A, (uint8_t *) &sa->sin_addr, 4);
+			dns_add_answer(TYPE_A, (uint8_t *) &sa->sin_addr, 4, announce_ttl);
 		}
 		if (ifa->ifa_addr->sa_family==AF_INET6) {
 			uint8_t ll_prefix[] = {0xfe, 0x80 };
@@ -144,7 +145,7 @@ service_reply_a(struct interface *iface, int type)
 			if (!memcmp(&sa6->sin6_addr, &ll_prefix, 2)) {
 				if (inet_ntop(AF_INET6, &sa6->sin6_addr, buf, 64))
 					printf("Interface: %s\tAddress6: %s\n", ifa->ifa_name, buf);
-				dns_add_answer(TYPE_AAAA, (uint8_t *) &sa6->sin6_addr, 16);
+				dns_add_answer(TYPE_AAAA, (uint8_t *) &sa6->sin6_addr, 16, announce_ttl);
 			}
 		}
 	}
@@ -177,7 +178,7 @@ service_reply(struct interface *iface, const char *match)
 		dns_init_answer();
 		service_add_srv(s);
 		if (s->txt && s->txt_len)
-			dns_add_answer(TYPE_TXT, (uint8_t *) s->txt, s->txt_len);
+			dns_add_answer(TYPE_TXT, (uint8_t *) s->txt, s->txt_len, announce_ttl);
 		dns_send_answer(iface, host);
 	}
 

@@ -120,7 +120,7 @@ dns_init_answer(void)
 }
 
 void
-dns_add_answer(int type, const uint8_t *rdata, uint16_t rdlength)
+dns_add_answer(int type, const uint8_t *rdata, uint16_t rdlength, int ttl)
 {
 	struct blob_attr *attr;
 	struct dns_answer *a;
@@ -129,7 +129,7 @@ dns_add_answer(int type, const uint8_t *rdata, uint16_t rdlength)
 	a = blob_data(attr);
 	a->type = cpu_to_be16(type);
 	a->class = cpu_to_be16(1);
-	a->ttl = cpu_to_be32(announce_ttl);
+	a->ttl = cpu_to_be32(ttl);
 	a->rdlength = cpu_to_be16(rdlength);
 	memcpy(a + 1, rdata, rdlength);
 
