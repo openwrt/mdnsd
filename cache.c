@@ -301,7 +301,7 @@ cache_answer(struct interface *iface, uint8_t *base, int blen, char *name, struc
 	if (r) {
 		if (!a->ttl) {
 			DBG(1, "D -> %s %s ttl:%d\n", dns_type_string(r->type), r->record, r->ttl);
-			cache_record_free(r);
+			r->time = time(0) + 1 - r->ttl;
 		} else {
 			r->ttl = a->ttl;
 			DBG(1, "A -> %s %s ttl:%d\n", dns_type_string(r->type), r->record, r->ttl);
