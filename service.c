@@ -154,33 +154,38 @@ service_reply_a(struct interface *iface, int type, int ttl)
 	freeifaddrs(ifap);
 }
 
+static void
+service_reply_single(struct interface *iface, struct service *s, const char *match, int ttl)
+{
+	const char *host = service_name(s->service);
+	char *service = strstr(host, "._");
+
+	if (!s->active || !service || !service_timeout(s))
+		return;
+
+	service++;
+
+	if (match && strcmp(match, s->service))
+		return;
+
+	dns_init_answer();
+	service_add_ptr(service_name(s->service), ttl);
+	dns_send_answer(iface, service);
+
+	dns_init_answer();
+	service_add_srv(s, ttl);
+	if (s->txt && s->txt_len)
+		dns_add_answer(TYPE_TXT, (uint8_t *) s->txt, s->txt_len, ttl);
+	dns_send_answer(iface, host);
+}
+
 void
 service_reply(struct interface *iface, const char *match, int ttl)
 {
 	struct service *s;
 
-	vlist_for_each_element(&services, s, node) {
-		const char *host = service_name(s->service);
-		char *service = strstr(host, "._");
-
-		if (!s->active || !service || !service_timeout(s))
-			continue;
-
-		service++;
-
-		if (match && strcmp(match, s->service))
-			continue;
-
-		dns_init_answer();
-		service_add_ptr(service_name(s->service), ttl);
-		dns_send_answer(iface, service);
-
-		dns_init_answer();
-		service_add_srv(s, ttl);
-		if (s->txt && s->txt_len)
-			dns_add_answer(TYPE_TXT, (uint8_t *) s->txt, s->txt_len, ttl);
-		dns_send_answer(iface, host);
-	}
+	vlist_for_each_element(&services, s, node)
+		service_reply_single(iface, s, match, ttl);
 
 	if (match)
 		return;
@@ -226,12 +231,18 @@ static void
 service_update(struct vlist_tree *tree, struct vlist_node *node_new,
 	       struct vlist_node *node_old)
 {
+	struct interface *iface;
 	struct service *s;
 
 	if (!node_old)
 		return;
 
 	s = container_of(node_old, struct service, node);
+
+	if (!node_new)
+		vlist_for_each_element(&interfaces, iface, node)
+			service_reply_single(iface, s, NULL, 0);
+
 	free(s);
 }
 
