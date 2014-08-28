@@ -15,6 +15,7 @@
 #include <arpa/nameser.h>
 #include <sys/socket.h>
 
+#include <ifaddrs.h>
 #include <resolv.h>
 #include <glob.h>
 #include <stdio.h>
@@ -119,12 +120,37 @@ service_timeout(struct service *s)
 void
 service_reply_a(struct interface *iface, int type)
 {
-	if (type != TYPE_A)
-		return;
+	struct ifaddrs *ifap, *ifa;
+	struct sockaddr_in *sa;
+	struct sockaddr_in6 *sa6;
+	char *addr;
+
+	getifaddrs(&ifap);
 
 	dns_init_answer();
-	dns_add_answer(TYPE_A, (uint8_t *) &iface->v4_addr.s_addr, 4);
+	for (ifa = ifap; ifa; ifa = ifa->ifa_next) {
+		if (strcmp(ifa->ifa_name, iface->name))
+			continue;
+		if (ifa->ifa_addr->sa_family==AF_INET) {
+			sa = (struct sockaddr_in *) ifa->ifa_addr;
+			addr = inet_ntoa(sa->sin_addr);
+			printf("Interface: %s\tAddress4: %s\n", ifa->ifa_name, addr);
+			dns_add_answer(TYPE_A, (uint8_t *) &sa->sin_addr, 4);
+		}
+		if (ifa->ifa_addr->sa_family==AF_INET6) {
+			uint8_t ll_prefix[] = {0xfe, 0x80 };
+			char buf[64] = { 0 };
+			sa6 = (struct sockaddr_in6 *) ifa->ifa_addr;
+			if (!memcmp(&sa6->sin6_addr, &ll_prefix, 2)) {
+				if (inet_ntop(AF_INET6, &sa6->sin6_addr, buf, 64))
+					printf("Interface: %s\tAddress6: %s\n", ifa->ifa_name, buf);
+				dns_add_answer(TYPE_AAAA, (uint8_t *) &sa6->sin6_addr, 16);
+			}
+		}
+	}
 	dns_send_answer(iface, mdns_hostname_local);
+
+	freeifaddrs(ifap);
 }
 
 void
