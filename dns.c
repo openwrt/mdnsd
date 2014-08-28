@@ -325,12 +325,12 @@ parse_question(struct interface *iface, char *name, struct dns_question *q)
 	switch (q->type) {
 	case TYPE_ANY:
 		if (!strcmp(name, mdns_hostname_local))
-			service_reply(iface, NULL);
+			service_reply(iface, NULL, announce_ttl);
 		break;
 
 	case TYPE_PTR:
 		service_announce_services(iface, name);
-		service_reply(iface, name);
+		service_reply(iface, name, announce_ttl);
 		break;
 
 	case TYPE_AAAA:
@@ -339,7 +339,7 @@ parse_question(struct interface *iface, char *name, struct dns_question *q)
 		if (host)
 			*host = '\0';
 		if (!strcmp(mdns_hostname, name))
-			service_reply_a(iface, q->type);
+			service_reply_a(iface, q->type, announce_ttl);
 		break;
 	};
 }
