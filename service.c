@@ -124,7 +124,6 @@ service_reply_a(struct interface *iface, int type, int ttl)
 	struct ifaddrs *ifap, *ifa;
 	struct sockaddr_in *sa;
 	struct sockaddr_in6 *sa6;
-	char *addr;
 
 	getifaddrs(&ifap);
 
@@ -134,19 +133,13 @@ service_reply_a(struct interface *iface, int type, int ttl)
 			continue;
 		if (ifa->ifa_addr->sa_family==AF_INET) {
 			sa = (struct sockaddr_in *) ifa->ifa_addr;
-			addr = inet_ntoa(sa->sin_addr);
-			printf("Interface: %s\tAddress4: %s\n", ifa->ifa_name, addr);
 			dns_add_answer(TYPE_A, (uint8_t *) &sa->sin_addr, 4, ttl);
 		}
 		if (ifa->ifa_addr->sa_family==AF_INET6) {
 			uint8_t ll_prefix[] = {0xfe, 0x80 };
-			char buf[64] = { 0 };
 			sa6 = (struct sockaddr_in6 *) ifa->ifa_addr;
-			if (!memcmp(&sa6->sin6_addr, &ll_prefix, 2)) {
-				if (inet_ntop(AF_INET6, &sa6->sin6_addr, buf, 64))
-					printf("Interface: %s\tAddress6: %s\n", ifa->ifa_name, buf);
+			if (!memcmp(&sa6->sin6_addr, &ll_prefix, 2))
 				dns_add_answer(TYPE_AAAA, (uint8_t *) &sa6->sin6_addr, 16, ttl);
-			}
 		}
 	}
 	dns_send_answer(iface, mdns_hostname_local);
