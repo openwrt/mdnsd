@@ -24,11 +24,13 @@
 #include <uci.h>
 #include <uci_blob.h>
 
+#include <libubus.h>
 #include <libubox/vlist.h>
 #include <libubox/uloop.h>
 #include <libubox/avl-cmp.h>
 #include <libubox/blobmsg_json.h>
 
+#include "ubus.h"
 #include "dns.h"
 #include "service.h"
 #include "util.h"
@@ -250,62 +252,59 @@ service_update(struct vlist_tree *tree, struct vlist_node *node_new,
 static void
 service_load_blob(struct blob_attr *b)
 {
-	struct blob_attr *txt, *cur, *_tb[__SERVICE_MAX];
-	int rem;
+	struct blob_attr *txt, *_tb[__SERVICE_MAX];
+	struct service *s;
+	char *d_service, *d_id;
+	uint8_t *d_txt;
+	int rem2;
+	int txt_len = 0;
 
-	blob_for_each_attr(cur, b, rem) {
-		struct service *s;
-		char *d_service, *d_id;
-		uint8_t *d_txt;
-		int rem2;
-		int txt_len = 0;
+	blobmsg_parse(service_policy, ARRAY_SIZE(service_policy),
+		_tb, blobmsg_data(b), blobmsg_data_len(b));
+	if (!_tb[SERVICE_PORT] || !_tb[SERVICE_SERVICE])
+		return;
 
-		blobmsg_parse(service_policy, ARRAY_SIZE(service_policy),
-			_tb, blobmsg_data(cur), blobmsg_data_len(cur));
-		if (!_tb[SERVICE_PORT] || !_tb[SERVICE_SERVICE])
-			continue;
+	if (_tb[SERVICE_SERVICE])
+		blobmsg_for_each_attr(txt, _tb[SERVICE_TXT], rem2)
+			txt_len += 1 + strlen(blobmsg_get_string(txt));
 
-		if (_tb[SERVICE_SERVICE])
-			blobmsg_for_each_attr(txt, _tb[SERVICE_TXT], rem2)
-				txt_len += 1 + strlen(blobmsg_get_string(txt));
+	s = calloc_a(sizeof(*s),
+		&d_id, strlen(blobmsg_name(b)) + 1,
+		&d_service, strlen(blobmsg_get_string(_tb[SERVICE_SERVICE])) + 1,
+		&d_txt, txt_len);
+	if (!s)
+		return;
 
-		s = calloc_a(sizeof(*s),
-			&d_id, strlen(blobmsg_name(cur)) + 1,
-			&d_service, strlen(blobmsg_get_string(_tb[SERVICE_SERVICE])) + 1,
-			&d_txt, txt_len);
-		if (!s)
-			continue;
+	s->port = blobmsg_get_u32(_tb[SERVICE_PORT]);
+	s->id = strcpy(d_id, blobmsg_name(b));
+	s->service = strcpy(d_service, blobmsg_get_string(_tb[SERVICE_SERVICE]));
+	s->active = 1;
+	s->t = 0;
+	s->txt_len = txt_len;
+	s->txt = d_txt;
 
-		s->port = blobmsg_get_u32(_tb[SERVICE_PORT]);
-		s->id = strcpy(d_id, blobmsg_name(cur));
-		s->service = strcpy(d_service, blobmsg_get_string(_tb[SERVICE_SERVICE]));
-		s->active = 1;
-		s->t = 0;
-		s->txt_len = txt_len;
-		s->txt = d_txt;
+	if (_tb[SERVICE_SERVICE])
+		blobmsg_for_each_attr(txt, _tb[SERVICE_TXT], rem2) {
+			int len = strlen(blobmsg_get_string(txt));
+			if (!len)
+				return;
+			if (len > 0xff)
+				len = 0xff;
+			*d_txt = len;
+			d_txt++;
+			memcpy(d_txt, blobmsg_get_string(txt), len);
+			d_txt += len;
+		}
 
-		if (_tb[SERVICE_SERVICE])
-			blobmsg_for_each_attr(txt, _tb[SERVICE_TXT], rem2) {
-				int len = strlen(blobmsg_get_string(txt));
-				if (!len)
-					continue;
-				if (len > 0xff)
-					len = 0xff;
-				*d_txt = len;
-				d_txt++;
-				memcpy(d_txt, blobmsg_get_string(txt), len);
-				d_txt += len;
-			}
-
-		vlist_add(&services, &s->node, s->id);
-	}
+	vlist_add(&services, &s->node, s->id);
 }
 
 static void
 service_load(char *path)
 {
+	struct blob_attr *cur;
 	glob_t gl;
-	int i;
+	int i, rem;
 
 	if (glob(path, GLOB_NOESCAPE | GLOB_MARK, NULL, &gl))
 		return;
@@ -313,21 +312,72 @@ service_load(char *path)
 	for (i = 0; i < gl.gl_pathc; i++) {
 	        blob_buf_init(&b, 0);
 		if (blobmsg_add_json_from_file(&b, gl.gl_pathv[i]))
-			service_load_blob(b.head);
+			blob_for_each_attr(cur, b.head, rem)
+				service_load_blob(cur);
 	}
 	globfree(&gl);
+}
+
+static void
+service_init_cb(struct ubus_request *req, int type, struct blob_attr *msg)
+{
+	struct blob_attr *cur;
+	int rem;
+
+	get_hostname();
+
+	vlist_update(&services);
+	service_load("/tmp/run/mdns/*");
+
+	blob_for_each_attr(cur, msg, rem) {
+		struct blob_attr *cur2;
+		int rem2;
+
+		blobmsg_for_each_attr(cur2, cur, rem2) {
+			struct blob_attr *cur3;
+			int rem3;
+
+			if (strcmp(blobmsg_name(cur2), "instances"))
+				continue;
+
+			blobmsg_for_each_attr(cur3, cur2, rem3) {
+				struct blob_attr *cur4;
+				int rem4;
+				int running = 0;
+
+				blobmsg_for_each_attr(cur4, cur3, rem4) {
+					const char *name = blobmsg_name(cur4);
+
+					if (!strcmp(name, "running")) {
+						running = blobmsg_get_bool(cur4);
+					} else if (running && !strcmp(name, "data")) {
+						struct blob_attr *cur5;
+						int rem5;
+
+						blobmsg_for_each_attr(cur5, cur4, rem5) {
+							struct blob_attr *cur6;
+							int rem6;
+
+							if (strcmp(blobmsg_name(cur5), "mdns"))
+								continue;
+
+							blobmsg_for_each_attr(cur6, cur5, rem6)
+								service_load_blob(cur6);
+						}
+						break;
+					}
+				}
+			}
+		}
+	}
+	vlist_flush(&services);
 }
 
 void
 service_init(int announce)
 {
 	service_init_announce = announce;
-
-	get_hostname();
-
-	vlist_update(&services);
-	service_load("/tmp/run/mdnsd/*");
-	vlist_flush(&services);
+	ubus_service_list(service_init_cb);
 }
 
 void

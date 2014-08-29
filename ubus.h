@@ -15,5 +15,6 @@
 #define _UBUS_H__
 
 extern void ubus_startup(void);
+extern int ubus_service_list(ubus_data_handler_t cb);
 
 #endif

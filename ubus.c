@@ -182,3 +182,16 @@ ubus_startup(void)
 	conn.cb = ubus_connect_handler;
 	ubus_auto_connect(&conn);
 }
+
+int ubus_service_list(ubus_data_handler_t cb)
+{
+	uint32_t id;
+	int ret;
+
+	blob_buf_init(&b, 0);
+	ret = ubus_lookup_id(&conn.ctx, "service", &id);
+	if (ret)
+		return ret;
+
+	return ubus_invoke(&conn.ctx, id, "list", b.head, cb, NULL, 5 * 1000);
+}
