@@ -248,67 +248,74 @@ service_update(struct vlist_tree *tree, struct vlist_node *node_new,
 }
 
 static void
-service_load(char *path)
+service_load_blob(struct blob_attr *b)
 {
 	struct blob_attr *txt, *cur, *_tb[__SERVICE_MAX];
-	int rem, i;
+	int rem;
+
+	blob_for_each_attr(cur, b, rem) {
+		struct service *s;
+		char *d_service, *d_id;
+		uint8_t *d_txt;
+		int rem2;
+		int txt_len = 0;
+
+		blobmsg_parse(service_policy, ARRAY_SIZE(service_policy),
+			_tb, blobmsg_data(cur), blobmsg_data_len(cur));
+		if (!_tb[SERVICE_PORT] || !_tb[SERVICE_SERVICE])
+			continue;
+
+		if (_tb[SERVICE_SERVICE])
+			blobmsg_for_each_attr(txt, _tb[SERVICE_TXT], rem2)
+				txt_len += 1 + strlen(blobmsg_get_string(txt));
+
+		s = calloc_a(sizeof(*s),
+			&d_id, strlen(blobmsg_name(cur)) + 1,
+			&d_service, strlen(blobmsg_get_string(_tb[SERVICE_SERVICE])) + 1,
+			&d_txt, txt_len);
+		if (!s)
+			continue;
+
+		s->port = blobmsg_get_u32(_tb[SERVICE_PORT]);
+		s->id = strcpy(d_id, blobmsg_name(cur));
+		s->service = strcpy(d_service, blobmsg_get_string(_tb[SERVICE_SERVICE]));
+		s->active = 1;
+		s->t = 0;
+		s->txt_len = txt_len;
+		s->txt = d_txt;
+
+		if (_tb[SERVICE_SERVICE])
+			blobmsg_for_each_attr(txt, _tb[SERVICE_TXT], rem2) {
+				int len = strlen(blobmsg_get_string(txt));
+				if (!len)
+					continue;
+				if (len > 0xff)
+					len = 0xff;
+				*d_txt = len;
+				d_txt++;
+				memcpy(d_txt, blobmsg_get_string(txt), len);
+				d_txt += len;
+			}
+
+		vlist_add(&services, &s->node, s->id);
+	}
+}
+
+static void
+service_load(char *path)
+{
 	glob_t gl;
+	int i;
 
 	if (glob(path, GLOB_NOESCAPE | GLOB_MARK, NULL, &gl))
 		return;
 
 	for (i = 0; i < gl.gl_pathc; i++) {
 	        blob_buf_init(&b, 0);
-
-		if (!blobmsg_add_json_from_file(&b, gl.gl_pathv[i]))
-			continue;
-		blob_for_each_attr(cur, b.head, rem) {
-			struct service *s;
-			char *d_service, *d_id;
-			uint8_t *d_txt;
-			int rem2;
-			int txt_len = 0;
-
-			blobmsg_parse(service_policy, ARRAY_SIZE(service_policy),
-				_tb, blobmsg_data(cur), blobmsg_data_len(cur));
-			if (!_tb[SERVICE_PORT] || !_tb[SERVICE_SERVICE])
-				continue;
-
-			if (_tb[SERVICE_SERVICE])
-				blobmsg_for_each_attr(txt, _tb[SERVICE_TXT], rem2)
-					txt_len += 1 + strlen(blobmsg_get_string(txt));
-
-			s = calloc_a(sizeof(*s),
-				&d_id, strlen(blobmsg_name(cur)) + 1,
-				&d_service, strlen(blobmsg_get_string(_tb[SERVICE_SERVICE])) + 1,
-				&d_txt, txt_len);
-			if (!s)
-				continue;
-
-			s->port = blobmsg_get_u32(_tb[SERVICE_PORT]);
-			s->id = strcpy(d_id, blobmsg_name(cur));
-			s->service = strcpy(d_service, blobmsg_get_string(_tb[SERVICE_SERVICE]));
-			s->active = 1;
-			s->t = 0;
-			s->txt_len = txt_len;
-			s->txt = d_txt;
-
-			if (_tb[SERVICE_SERVICE])
-				blobmsg_for_each_attr(txt, _tb[SERVICE_TXT], rem2) {
-					int len = strlen(blobmsg_get_string(txt));
-					if (!len)
-						continue;
-					if (len > 0xff)
-						len = 0xff;
-					*d_txt = len;
-					d_txt++;
-					memcpy(d_txt, blobmsg_get_string(txt), len);
-					d_txt += len;
-				}
-
-			vlist_add(&services, &s->node, s->id);
-		}
+		if (blobmsg_add_json_from_file(&b, gl.gl_pathv[i]))
+			service_load_blob(b.head);
 	}
+	globfree(&gl);
 }
 
 void
