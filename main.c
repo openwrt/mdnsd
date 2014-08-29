@@ -37,6 +37,8 @@
 #include "announce.h"
 #include "interface.h"
 
+int cfg_proto = 0;
+
 static void
 signal_shutdown(int signal)
 {
@@ -50,7 +52,7 @@ main(int argc, char **argv)
 
 	uloop_init();
 
-	while ((ch = getopt(argc, argv, "t:i:d")) != -1) {
+	while ((ch = getopt(argc, argv, "t:i:d46")) != -1) {
 		switch (ch) {
 		case 't':
 			ttl = atoi(optarg);
@@ -64,6 +66,13 @@ main(int argc, char **argv)
 			break;
 		case 'i':
 			interface_add(optarg);
+			break;
+		case '4':
+	fprintf(stderr, "%s:%s[%d]\n", __FILE__, __func__, __LINE__);
+			cfg_proto = 4;
+			break;
+		case '6':
+			cfg_proto = 6;
 			break;
 		default:
 			return -1;

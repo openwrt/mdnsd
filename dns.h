@@ -68,6 +68,7 @@ struct dns_question {
 } __attribute__((packed, aligned(2)));
 
 struct interface;
+extern int cfg_proto;
 
 void dns_send_question(struct interface *iface, const char *question, int type);
 void dns_init_answer(void);
