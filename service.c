@@ -36,6 +36,7 @@
 #include "announce.h"
 
 enum {
+	SERVICE_SERVICE,
 	SERVICE_PORT,
 	SERVICE_TXT,
 	__SERVICE_MAX,
@@ -46,8 +47,8 @@ struct service {
 
 	time_t t;
 
+	const char *id;
 	const char *service;
-	const char *daemon;
 	const uint8_t *txt;
 	int txt_len;
 	int port;
@@ -55,6 +56,7 @@ struct service {
 };
 
 static const struct blobmsg_policy service_policy[__SERVICE_MAX] = {
+	[SERVICE_SERVICE] = { .name = "service", .type = BLOBMSG_TYPE_STRING },
 	[SERVICE_PORT] = { .name = "port", .type = BLOBMSG_TYPE_INT32 },
 	[SERVICE_TXT] = { .name = "txt", .type = BLOBMSG_TYPE_ARRAY },
 };
@@ -262,47 +264,49 @@ service_load(char *path)
 			continue;
 		blob_for_each_attr(cur, b.head, rem) {
 			struct service *s;
-			char *d_service, *d_daemon;
+			char *d_service, *d_id;
 			uint8_t *d_txt;
 			int rem2;
 			int txt_len = 0;
 
 			blobmsg_parse(service_policy, ARRAY_SIZE(service_policy),
 				_tb, blobmsg_data(cur), blobmsg_data_len(cur));
-			if (!_tb[SERVICE_PORT] || !_tb[SERVICE_TXT])
+			if (!_tb[SERVICE_PORT] || !_tb[SERVICE_SERVICE])
 				continue;
 
-			blobmsg_for_each_attr(txt, _tb[SERVICE_TXT], rem2)
-				txt_len += 1 + strlen(blobmsg_get_string(txt));
+			if (_tb[SERVICE_SERVICE])
+				blobmsg_for_each_attr(txt, _tb[SERVICE_TXT], rem2)
+					txt_len += 1 + strlen(blobmsg_get_string(txt));
 
 			s = calloc_a(sizeof(*s),
-				&d_daemon, strlen(gl.gl_pathv[i]) + 1,
-				&d_service, strlen(blobmsg_name(cur)) + 1,
+				&d_id, strlen(blobmsg_name(cur)) + 1,
+				&d_service, strlen(blobmsg_get_string(_tb[SERVICE_SERVICE])) + 1,
 				&d_txt, txt_len);
 			if (!s)
 				continue;
 
 			s->port = blobmsg_get_u32(_tb[SERVICE_PORT]);
-			s->service = strcpy(d_service, blobmsg_name(cur));
-			s->daemon = strcpy(d_daemon, gl.gl_pathv[i]);
+			s->id = strcpy(d_id, blobmsg_name(cur));
+			s->service = strcpy(d_service, blobmsg_get_string(_tb[SERVICE_SERVICE]));
 			s->active = 1;
 			s->t = 0;
 			s->txt_len = txt_len;
 			s->txt = d_txt;
 
-			blobmsg_for_each_attr(txt, _tb[SERVICE_TXT], rem2) {
-				int len = strlen(blobmsg_get_string(txt));
-				if (!len)
-					continue;
-				if (len > 0xff)
-					len = 0xff;
-				*d_txt = len;
-				d_txt++;
-				memcpy(d_txt, blobmsg_get_string(txt), len);
-				d_txt += len;
-			}
+			if (_tb[SERVICE_SERVICE])
+				blobmsg_for_each_attr(txt, _tb[SERVICE_TXT], rem2) {
+					int len = strlen(blobmsg_get_string(txt));
+					if (!len)
+						continue;
+					if (len > 0xff)
+						len = 0xff;
+					*d_txt = len;
+					d_txt++;
+					memcpy(d_txt, blobmsg_get_string(txt), len);
+					d_txt += len;
+				}
 
-			vlist_add(&services, &s->node, s->service);
+			vlist_add(&services, &s->node, s->id);
 		}
 	}
 }
