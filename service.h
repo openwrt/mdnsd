@@ -14,7 +14,7 @@
 #ifndef _SERVICE_H__
 #define _SERVICE_H__
 
-extern void service_init(void);
+extern void service_init(int announce);
 extern void service_cleanup(void);
 extern void service_announce(struct interface *iface);
 extern void service_announce_services(struct interface *iface, const char *service);

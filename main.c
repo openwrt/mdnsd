@@ -77,7 +77,7 @@ main(int argc, char **argv)
 	if (cache_init())
 		return -1;
 
-	service_init();
+	service_init(0);
 
 	ubus_startup();
 	uloop_run();

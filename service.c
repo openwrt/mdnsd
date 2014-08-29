@@ -67,6 +67,7 @@ static struct blob_buf b;
 static VLIST_TREE(services, avl_strcmp, service_update, false, false);
 static char *sdudp =  "_services._dns-sd._udp.local";
 static char *sdtcp =  "_services._dns-sd._tcp.local";
+static int service_init_announce;
 
 static const char *
 service_name(const char *domain)
@@ -148,12 +149,12 @@ service_reply_a(struct interface *iface, int type, int ttl)
 }
 
 static void
-service_reply_single(struct interface *iface, struct service *s, const char *match, int ttl)
+service_reply_single(struct interface *iface, struct service *s, const char *match, int ttl, int force)
 {
 	const char *host = service_name(s->service);
 	char *service = strstr(host, "._");
 
-	if (!s->active || !service || !service_timeout(s))
+	if (!force && (!s->active || !service || !service_timeout(s)))
 		return;
 
 	service++;
@@ -178,7 +179,7 @@ service_reply(struct interface *iface, const char *match, int ttl)
 	struct service *s;
 
 	vlist_for_each_element(&services, s, node)
-		service_reply_single(iface, s, match, ttl);
+		service_reply_single(iface, s, match, ttl, 0);
 
 	if (match)
 		return;
@@ -227,15 +228,20 @@ service_update(struct vlist_tree *tree, struct vlist_node *node_new,
 	struct interface *iface;
 	struct service *s;
 
-	if (!node_old)
+	if (!node_old) {
+		s = container_of(node_new, struct service, node);
+		if (service_init_announce)
+			vlist_for_each_element(&interfaces, iface, node) {
+				s->t = 0;
+				service_reply_single(iface, s, NULL, announce_ttl, 1);
+			}
 		return;
+	}
 
 	s = container_of(node_old, struct service, node);
-
-	if (!node_new)
+	if (!node_new && service_init_announce)
 		vlist_for_each_element(&interfaces, iface, node)
-			service_reply_single(iface, s, NULL, 0);
-
+			service_reply_single(iface, s, NULL, 0, 1);
 	free(s);
 }
 
@@ -302,8 +308,10 @@ service_load(char *path)
 }
 
 void
-service_init(void)
+service_init(int announce)
 {
+	service_init_announce = announce;
+
 	get_hostname();
 
 	vlist_update(&services);
