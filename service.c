@@ -376,6 +376,8 @@ service_init_cb(struct ubus_request *req, int type, struct blob_attr *msg)
 void
 service_init(int announce)
 {
+	get_hostname();
+
 	service_init_announce = announce;
 	ubus_service_list(service_init_cb);
 }

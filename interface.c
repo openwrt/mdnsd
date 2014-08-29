@@ -136,7 +136,13 @@ read_socket(struct uloop_fd *u, unsigned int events)
 {
 	struct interface *iface = container_of(u, struct interface, fd);
 	static uint8_t buffer[8 * 1024];
-	int len;
+	struct iovec iov[1];
+	char cmsg6[CMSG_SPACE(sizeof(struct in6_pktinfo))];
+	struct cmsghdr *cmsgptr;
+	struct msghdr msg;
+	socklen_t len;
+	struct sockaddr_in6 from;
+	int flags = 0, ifindex = -1;
 
 	if (u->eof) {
 		interface_close(iface);
@@ -144,14 +150,34 @@ read_socket(struct uloop_fd *u, unsigned int events)
 		return;
 	}
 
-	len = read(u->fd, buffer, sizeof(buffer));
-	if (len < 1) {
-		if (errno != EAGAIN)
-			fprintf(stderr, "read failed: %s\n", strerror(errno));
+	iov[0].iov_base = buffer;
+	iov[0].iov_len = sizeof(buffer);
+
+	memset(&msg, 0, sizeof(msg));
+	msg.msg_name = (struct sockaddr *) &from;
+	msg.msg_namelen = (iface->v6) ? (sizeof(struct sockaddr_in6)) : (sizeof(struct sockaddr_in));
+	msg.msg_iov = iov;
+	msg.msg_iovlen = 1;
+	msg.msg_control = &cmsg6;
+	msg.msg_controllen = sizeof(cmsg6);
+
+	len = recvmsg(u->fd, &msg, flags);
+	if (len < 0) {
+		fprintf(stderr, "%s:%s[%d]\n", __FILE__, __func__, __LINE__);
 		return;
 	}
+	for (cmsgptr = CMSG_FIRSTHDR(&msg); cmsgptr != NULL && ifindex == -1; cmsgptr = CMSG_NXTHDR(&msg, cmsgptr)) {
+		void *c = CMSG_DATA(cmsgptr);
 
-	dns_handle_packet(iface, buffer, len);
+		if (cmsgptr->cmsg_level == IPPROTO_IP && cmsgptr->cmsg_type == IP_PKTINFO)
+			ifindex = ((struct in_pktinfo *) c)->ipi_ifindex;
+		else if (cmsgptr->cmsg_level == IPPROTO_IPV6 && cmsgptr->cmsg_type == IPV6_PKTINFO)
+			ifindex = ((struct in6_pktinfo *) c)->ipi6_ifindex;
+	}
+	if (ifindex)
+		dns_handle_packet(iface, buffer, len);
+
+	printf("%d\n", ifindex);
 }
 
 static int
@@ -324,6 +350,9 @@ get_iface_ipv4(struct interface *iface)
 	struct ifreq ir;
 	int sock, ret = -1;
 
+	if (cfg_proto && (cfg_proto != 4))
+		return -1;
+
 	sock = socket(AF_INET, SOCK_DGRAM, 0);
 	if (sock < 0)
 		return -1;
@@ -349,6 +378,9 @@ get_iface_ipv6(struct interface *iface)
 	struct sockaddr_in6 addr = {AF_INET6, 0, iface->ifindex, IN6ADDR_ANY_INIT, 0};
 	socklen_t alen = sizeof(addr);
 	int sock, ret = -1;
+
+	if (cfg_proto && (cfg_proto != 6))
+		return -1;
 
 	addr.sin6_addr.s6_addr[0] = 0xff;
 	addr.sin6_addr.s6_addr[1] = 0x02;
@@ -403,6 +435,7 @@ int interface_add(const char *name)
 {
 	int v4 = _interface_add(name, 0);
 	int v6 = _interface_add(name, 1);
+
 	return v4 && v6;
 }
 
