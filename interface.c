@@ -174,10 +174,10 @@ read_socket(struct uloop_fd *u, unsigned int events)
 		else if (cmsgptr->cmsg_level == IPPROTO_IPV6 && cmsgptr->cmsg_type == IPV6_PKTINFO)
 			ifindex = ((struct in6_pktinfo *) c)->ipi6_ifindex;
 	}
-	if (ifindex)
+	if (ifindex != iface->ifindex)
+		fprintf(stderr, "invalid iface index %d != %d\n", ifindex, iface->ifindex);
+	else
 		dns_handle_packet(iface, buffer, len);
-
-	printf("%d\n", ifindex);
 }
 
 static int
