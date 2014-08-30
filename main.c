@@ -68,7 +68,6 @@ main(int argc, char **argv)
 			interface_add(optarg);
 			break;
 		case '4':
-	fprintf(stderr, "%s:%s[%d]\n", __FILE__, __func__, __LINE__);
 			cfg_proto = 4;
 			break;
 		case '6':
