@@ -162,8 +162,8 @@ read_socket(struct uloop_fd *u, unsigned int events)
 	msg.msg_controllen = sizeof(cmsg6);
 
 	len = recvmsg(u->fd, &msg, flags);
-	if (len < 0) {
-		fprintf(stderr, "%s:%s[%d]\n", __FILE__, __func__, __LINE__);
+	if (len == -1) {
+		perror("read failed");
 		return;
 	}
 	for (cmsgptr = CMSG_FIRSTHDR(&msg); cmsgptr != NULL && ifindex == -1; cmsgptr = CMSG_NXTHDR(&msg, cmsgptr)) {
