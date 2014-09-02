@@ -34,9 +34,13 @@ struct interface {
 	struct uloop_timeout reconnect;
 
 	int v6;
+	int multicast;
 	int ifindex;
+
 	struct in_addr v4_addr;
 	struct in6_addr v6_addr;
+	char v4_addrs[16];
+	char v6_addrs[64];
 
 	struct uloop_timeout announce_timer;
 	int announce_state;
