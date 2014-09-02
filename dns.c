@@ -66,7 +66,7 @@ dns_type_string(uint16_t type)
 }
 
 void
-dns_send_question(struct interface *iface, const char *question, int type)
+dns_send_question(struct interface *iface, const char *question, int type, int unicast)
 {
 	static struct dns_header h;
 	static struct dns_question q;
@@ -86,7 +86,7 @@ dns_send_question(struct interface *iface, const char *question, int type)
 	int len;
 
 	h.questions = cpu_to_be16(1);
-	q.class = cpu_to_be16(1);
+	q.class = cpu_to_be16(((unicast) ? (CLASS_UNICAST) : (0))  | 1);
 	q.type = cpu_to_be16(type);
 
 	len = dn_comp(question, (void *) name_buffer, sizeof(name_buffer), NULL, NULL);
@@ -94,6 +94,9 @@ dns_send_question(struct interface *iface, const char *question, int type)
 		return;
 
 	iov[1].iov_len = len;
+
+	if (unicast == iface->multicast)
+		iface = iface->peer;
 
 	if (interface_send_packet(iface, iov, ARRAY_SIZE(iov)) < 0)
 		fprintf(stderr, "failed to send question\n");
@@ -319,6 +322,9 @@ static void
 parse_question(struct interface *iface, char *name, struct dns_question *q)
 {
 	char *host;
+
+	if ((q->class & CLASS_UNICAST) && iface->multicast)
+		iface = iface->peer;
 
 	DBG(1, "Q -> %s %s\n", dns_type_string(q->type), name);
 

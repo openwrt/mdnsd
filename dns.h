@@ -32,7 +32,7 @@
 #define MCAST_ADDR6		"ff02::fb"
 #define MCAST_PORT		5353
 
-#define CLASS_FLUSH		0x8000
+#define CLASS_UNICAST		0x8000
 #define CLASS_IN		0x0001
 
 #define MAX_NAME_LEN		8096
@@ -70,7 +70,7 @@ struct dns_question {
 struct interface;
 extern int cfg_proto;
 
-void dns_send_question(struct interface *iface, const char *question, int type);
+void dns_send_question(struct interface *iface, const char *question, int type, int unicast);
 void dns_init_answer(void);
 void dns_add_answer(int type, const uint8_t *rdata, uint16_t rdlength, int ttl);
 void dns_send_answer(struct interface *iface, const char *answer);

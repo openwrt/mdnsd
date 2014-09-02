@@ -46,7 +46,7 @@ announce_timer(struct uloop_timeout *timeout)
 		case STATE_PROBE1:
 		case STATE_PROBE2:
 		case STATE_PROBE3:
-			dns_send_question(iface, mdns_hostname_local, TYPE_ANY);
+			dns_send_question(iface, mdns_hostname_local, TYPE_ANY, 0);
 			uloop_timeout_set(timeout, 250);
 			iface->announce_state++;
 			break;

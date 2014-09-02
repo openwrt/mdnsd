@@ -27,6 +27,7 @@ extern struct vlist_tree interfaces;
 
 struct interface {
 	struct vlist_node node;
+	struct interface *peer;
 
 	const char *name;
 	char *id;

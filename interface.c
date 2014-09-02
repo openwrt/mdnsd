@@ -363,8 +363,9 @@ reconnect_socket4(struct uloop_timeout *timeout)
 	}
 
 	uloop_fd_add(&iface->fd, ULOOP_READ);
-	dns_send_question(iface, "_services._dns-sd._udp.local", TYPE_PTR);
-	announce_init(iface);
+	dns_send_question(iface, "_services._dns-sd._udp.local", TYPE_PTR, 1);
+	if (iface->multicast)
+		announce_init(iface);
 
 	return;
 
@@ -405,7 +406,7 @@ reconnect_socket6(struct uloop_timeout *timeout)
 	}
 
 	uloop_fd_add(&iface->fd, ULOOP_READ);
-	dns_send_question(iface, "_services._dns-sd._udp.local", TYPE_PTR);
+	dns_send_question(iface, "_services._dns-sd._udp.local", TYPE_PTR, 1);
 	announce_init(iface);
 	return;
 
@@ -506,6 +507,9 @@ int interface_add(const char *name)
 
 			memcpy(&unicast->v4_addr, &sa->sin_addr, sizeof(unicast->v4_addr));
 			inet_ntop(AF_INET, &sa->sin_addr, unicast->v4_addrs, sizeof(unicast->v4_addrs));
+
+			v4->peer = unicast;
+			unicast->peer = v4;
 		}
 
 		if (ifa->ifa_addr->sa_family == AF_INET6 && !v6) {
@@ -531,6 +535,9 @@ int interface_add(const char *name)
 
 			memcpy(&unicast->v6_addr, &sa6->sin6_addr, sizeof(unicast->v6_addr));
 			inet_ntop(AF_INET6, &sa6->sin6_addr, unicast->v6_addrs, sizeof(unicast->v6_addrs));
+
+			v6->peer = unicast;
+			unicast->peer = v6;
 		}
 	}
 

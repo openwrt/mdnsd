@@ -120,7 +120,7 @@ cache_scan(void)
 
 	vlist_for_each_element(&interfaces, iface, node)
 		avl_for_each_element(&entries, s, avl)
-			dns_send_question(iface, s->entry, TYPE_PTR);
+			dns_send_question(iface, s->entry, TYPE_PTR, 1);
 }
 
 static struct cache_entry*
@@ -154,7 +154,7 @@ cache_entry(struct interface *iface, char *entry, int hlen, int ttl)
 	avl_insert(&entries, &s->avl);
 
 	if (!hlen)
-		dns_send_question(iface, entry, TYPE_PTR);
+		dns_send_question(iface, entry, TYPE_PTR, !iface->multicast);
 
 	return s;
 }
