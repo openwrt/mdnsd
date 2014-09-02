@@ -21,7 +21,9 @@
 #include <net/if.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <sys/types.h>
 
+#include <ifaddrs.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -132,12 +134,84 @@ static void interface_free(struct interface *iface)
 }
 
 static void
-read_socket(struct uloop_fd *u, unsigned int events)
+read_socket4(struct uloop_fd *u, unsigned int events)
 {
 	struct interface *iface = container_of(u, struct interface, fd);
 	static uint8_t buffer[8 * 1024];
 	struct iovec iov[1];
-	char cmsg6[CMSG_SPACE(sizeof(struct in6_pktinfo))];
+	char cmsg[CMSG_SPACE(sizeof(struct in_pktinfo)) + CMSG_SPACE(sizeof(int)) + 1];
+	struct cmsghdr *cmsgptr;
+	struct msghdr msg;
+	socklen_t len;
+	struct sockaddr_in from;
+	int flags = 0, ifindex = -1;
+	uint8_t ttl = 0;
+	struct in_pktinfo *inp = NULL;
+
+	if (u->eof) {
+		interface_close(iface);
+		uloop_timeout_set(&iface->reconnect, 1000);
+		return;
+	}
+
+	iov[0].iov_base = buffer;
+	iov[0].iov_len = sizeof(buffer);
+
+	memset(&msg, 0, sizeof(msg));
+	msg.msg_name = (struct sockaddr *) &from;
+	msg.msg_namelen = sizeof(struct sockaddr_in);
+	msg.msg_iov = iov;
+	msg.msg_iovlen = 1;
+	msg.msg_control = &cmsg;
+	msg.msg_controllen = sizeof(cmsg);
+
+	len = recvmsg(u->fd, &msg, flags);
+	if (len == -1) {
+		perror("read failed");
+		return;
+	}
+	for (cmsgptr = CMSG_FIRSTHDR(&msg); cmsgptr != NULL; cmsgptr = CMSG_NXTHDR(&msg, cmsgptr)) {
+		void *c = CMSG_DATA(cmsgptr);
+
+		switch (cmsgptr->cmsg_type) {
+		case IP_PKTINFO:
+			inp = ((struct in_pktinfo *) c);
+			break;
+
+		case IP_TTL:
+			ttl = (uint8_t) *((int *) c);
+			break;
+
+		default:
+			fprintf(stderr, "unknown cmsg %x\n", cmsgptr->cmsg_type);
+			break;
+		}
+	}
+
+	if (0) {
+		char buf[256];
+
+		inet_ntop(AF_INET, &from.sin_addr, buf, 256);
+		fprintf(stderr, "%s:%s[%d]%s:%d\n", __FILE__, __func__, __LINE__, buf, from.sin_port);
+		inet_ntop(AF_INET, &inp->ipi_spec_dst, buf, 256);
+		fprintf(stderr, "%s:%s[%d]%s:%d\n", __FILE__, __func__, __LINE__, buf, from.sin_port);
+		inet_ntop(AF_INET, &inp->ipi_addr, buf, 256);
+		fprintf(stderr, "%s:%s[%d]%s:%d\n", __FILE__, __func__, __LINE__, buf, from.sin_port);
+	}
+
+	if (inp->ipi_ifindex != iface->ifindex)
+		fprintf(stderr, "invalid iface index %d != %d\n", ifindex, iface->ifindex);
+	else if (ttl == 255)
+		dns_handle_packet(iface, buffer, len, 0);
+}
+
+static void
+read_socket6(struct uloop_fd *u, unsigned int events)
+{
+	struct interface *iface = container_of(u, struct interface, fd);
+	static uint8_t buffer[8 * 1024];
+	struct iovec iov[1];
+	char cmsg6[CMSG_SPACE(sizeof(struct in6_pktinfo)) + 1];
 	struct cmsghdr *cmsgptr;
 	struct msghdr msg;
 	socklen_t len;
@@ -166,7 +240,7 @@ read_socket(struct uloop_fd *u, unsigned int events)
 		perror("read failed");
 		return;
 	}
-	for (cmsgptr = CMSG_FIRSTHDR(&msg); cmsgptr != NULL && ifindex == -1; cmsgptr = CMSG_NXTHDR(&msg, cmsgptr)) {
+	for (cmsgptr = CMSG_FIRSTHDR(&msg); cmsgptr != NULL; cmsgptr = CMSG_NXTHDR(&msg, cmsgptr)) {
 		void *c = CMSG_DATA(cmsgptr);
 
 		if (cmsgptr->cmsg_level == IPPROTO_IP && cmsgptr->cmsg_type == IP_PKTINFO)
@@ -177,15 +251,14 @@ read_socket(struct uloop_fd *u, unsigned int events)
 	if (ifindex != iface->ifindex)
 		fprintf(stderr, "invalid iface index %d != %d\n", ifindex, iface->ifindex);
 	else
-		dns_handle_packet(iface, buffer, len);
+		dns_handle_packet(iface, buffer, len, 0);
 }
 
 static int
-interface_socket_setup4(struct interface *iface)
+interface_mcast_setup4(struct interface *iface)
 {
 	struct ip_mreqn mreq;
 	uint8_t ttl = 255;
-	int yes = 1;
 	int no = 0;
 	struct sockaddr_in sa = { 0 };
 	int fd = iface->fd.fd;
@@ -202,9 +275,6 @@ interface_socket_setup4(struct interface *iface)
 	if (setsockopt(fd, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl)) < 0)
 		fprintf(stderr, "ioctl failed: IP_MULTICAST_TTL\n");
 
-	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) < 0)
-		fprintf(stderr, "ioctl failed: SO_REUSEADDR\n");
-
 	/* Some network drivers have issues with dropping membership of
 	 * mcast groups when the iface is down, but don't allow rejoining
 	 * when it comes back up. This is an ugly workaround
@@ -219,12 +289,6 @@ interface_socket_setup4(struct interface *iface)
 		return -1;
 	}
 
-	if (setsockopt(fd, IPPROTO_IP, IP_RECVTTL, &yes, sizeof(yes)) < 0)
-		fprintf(stderr, "ioctl failed: IP_RECVTTL\n");
-
-	if (setsockopt(fd, IPPROTO_IP, IP_PKTINFO, &yes, sizeof(yes)) < 0)
-		fprintf(stderr, "ioctl failed: IP_PKTINFO\n");
-
 	if (setsockopt(fd, IPPROTO_IP, IP_MULTICAST_LOOP, &no, sizeof(no)) < 0)
 		fprintf(stderr, "ioctl failed: IP_MULTICAST_LOOP\n");
 
@@ -236,7 +300,6 @@ interface_socket_setup6(struct interface *iface)
 {
 	struct ipv6_mreq mreq;
 	int ttl = 255;
-	int yes = 1;
 	int no = 0;
 	struct sockaddr_in6 sa = { 0 };
 	int fd = iface->fd.fd;
@@ -252,12 +315,6 @@ interface_socket_setup6(struct interface *iface)
 	if (setsockopt(fd, IPPROTO_IPV6, IPV6_MULTICAST_HOPS, &ttl, sizeof(ttl)) < 0)
 		fprintf(stderr, "ioctl failed: IPV6_MULTICAST_HOPS\n");
 
-	if (setsockopt(fd, IPPROTO_IPV6, IPV6_UNICAST_HOPS, &ttl, sizeof(ttl)) < 0)
-		fprintf(stderr, "ioctl failed: IPV6_UNICAST_HOPS\n");
-
-	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) < 0)
-		fprintf(stderr, "ioctl failed: SO_REUSEADDR\n");
-
 	setsockopt(fd, IPPROTO_IPV6, IPV6_LEAVE_GROUP, &mreq, sizeof(mreq));
 	if (setsockopt(fd, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) < 0) {
 		fprintf(stderr, "failed to join multicast group: %s\n", strerror(errno));
@@ -266,12 +323,6 @@ interface_socket_setup6(struct interface *iface)
 		return -1;
 	}
 
-	if (setsockopt(fd, IPPROTO_IPV6, IPV6_RECVPKTINFO, &yes, sizeof(yes)) < 0)
-		fprintf(stderr, "ioctl failed: IPV6_RECVPKTINFO\n");
-
-	if (setsockopt(fd, IPPROTO_IPV6, IPV6_RECVHOPLIMIT, &yes, sizeof(yes)) < 0)
-		fprintf(stderr, "ioctl failed: IPV6_RECVHOPLIMIT\n");
-
 	if (setsockopt(fd, IPPROTO_IPV6, IPV6_MULTICAST_LOOP, &no, sizeof(no)) < 0)
 		fprintf(stderr, "ioctl failed: IPV6_MULTICAST_LOOP\n");
 
@@ -279,32 +330,69 @@ interface_socket_setup6(struct interface *iface)
 }
 
 static void
-reconnect_socket(struct uloop_timeout *timeout)
+reconnect_socket4(struct uloop_timeout *timeout)
 {
 	struct interface *iface = container_of(timeout, struct interface, reconnect);
-	char mcast_addr[16];
-	int type = 0;
+	int yes = 1;
 
-	if (iface->v6) {
-		snprintf(mcast_addr, sizeof(mcast_addr), "%s%%%s", iface->mcast_addr, iface->name);
-		type = USOCK_IPV6ONLY;
-	} else {
-		snprintf(mcast_addr, sizeof(mcast_addr), "%s", iface->mcast_addr);
-		type = USOCK_IPV4ONLY;
+	iface->fd.fd = usock(USOCK_UDP | USOCK_SERVER | USOCK_NONBLOCK | USOCK_IPV4ONLY, iface->mcast_addr, "5353");
+	if (iface->fd.fd < 0) {
+		fprintf(stderr, "failed to add listener %s: %s\n", iface->mcast_addr, strerror(errno));
+		goto retry;
 	}
 
-	iface->fd.fd = usock(USOCK_UDP | USOCK_SERVER | USOCK_NONBLOCK | type, mcast_addr, "5353");
+	if (setsockopt(iface->fd.fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) < 0)
+		fprintf(stderr, "ioctl failed: SO_REUSEADDR\n");
+
+	if (setsockopt(iface->fd.fd, IPPROTO_IP, IP_RECVTTL, &yes, sizeof(yes)) < 0)
+		fprintf(stderr, "ioctl failed: IP_RECVTTL\n");
+
+	if (setsockopt(iface->fd.fd, IPPROTO_IP, IP_PKTINFO, &yes, sizeof(yes)) < 0)
+		fprintf(stderr, "ioctl failed: IP_PKTINFO\n");
+
+	if (interface_mcast_setup4(iface)) {
+		iface->fd.fd = -1;
+		goto retry;
+	}
+
+	uloop_fd_add(&iface->fd, ULOOP_READ);
+	dns_send_question(iface, "_services._dns-sd._udp.local", TYPE_PTR);
+	announce_init(iface);
+
+	return;
+
+retry:
+	uloop_timeout_set(timeout, 1000);
+}
+
+static void
+reconnect_socket6(struct uloop_timeout *timeout)
+{
+	struct interface *iface = container_of(timeout, struct interface, reconnect);
+	char mcast_addr[128];
+	int ttl = 255;
+	int yes = 1;
+
+	snprintf(mcast_addr, sizeof(mcast_addr), "%s%%%s", iface->mcast_addr, iface->name);
+	iface->fd.fd = usock(USOCK_UDP | USOCK_SERVER | USOCK_NONBLOCK | USOCK_IPV6ONLY, mcast_addr, "5353");
 	if (iface->fd.fd < 0) {
 		fprintf(stderr, "failed to add listener %s: %s\n", mcast_addr, strerror(errno));
 		goto retry;
 	}
 
-	if (!iface->v6 && interface_socket_setup4(iface)) {
-		iface->fd.fd = -1;
-		goto retry;
-	}
+	if (setsockopt(iface->fd.fd, IPPROTO_IPV6, IPV6_UNICAST_HOPS, &ttl, sizeof(ttl)) < 0)
+		fprintf(stderr, "ioctl failed: IPV6_UNICAST_HOPS\n");
 
-	if (iface->v6 && interface_socket_setup6(iface)) {
+	if (setsockopt(iface->fd.fd, IPPROTO_IPV6, IPV6_RECVPKTINFO, &yes, sizeof(yes)) < 0)
+		fprintf(stderr, "ioctl failed: IPV6_RECVPKTINFO\n");
+
+	if (setsockopt(iface->fd.fd, IPPROTO_IPV6, IPV6_RECVHOPLIMIT, &yes, sizeof(yes)) < 0)
+		fprintf(stderr, "ioctl failed: IPV6_RECVHOPLIMIT\n");
+
+	if (setsockopt(iface->fd.fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) < 0)
+		fprintf(stderr, "ioctl failed: SO_REUSEADDR\n");
+
+	if (interface_socket_setup6(iface)) {
 		iface->fd.fd = -1;
 		goto retry;
 	}
@@ -321,8 +409,13 @@ retry:
 
 static void interface_start(struct interface *iface)
 {
-	iface->fd.cb = read_socket;
-	iface->reconnect.cb = reconnect_socket;
+	if (iface->v6) {
+		iface->fd.cb = read_socket6;
+		iface->reconnect.cb = reconnect_socket6;
+	} else {
+		iface->fd.cb = read_socket4;
+		iface->reconnect.cb = reconnect_socket4;
+	}
 	uloop_timeout_set(&iface->reconnect, 100);
 }
 
@@ -343,62 +436,7 @@ iface_update_cb(struct vlist_tree *tree, struct vlist_node *node_new,
 	}
 }
 
-static int
-get_iface_ipv4(struct interface *iface)
-{
-	struct sockaddr_in *sin;
-	struct ifreq ir;
-	int sock, ret = -1;
-
-	if (cfg_proto && (cfg_proto != 4))
-		return -1;
-
-	sock = socket(AF_INET, SOCK_DGRAM, 0);
-	if (sock < 0)
-		return -1;
-
-	memset(&ir, 0, sizeof(struct ifreq));
-	strncpy(ir.ifr_name, iface->name, sizeof(ir.ifr_name));
-
-	ret = ioctl(sock, SIOCGIFADDR, &ir);
-	if (ret < 0)
-		goto out;
-
-	sin = (struct sockaddr_in *) &ir.ifr_addr;
-	memcpy(&iface->v4_addr, &sin->sin_addr, sizeof(iface->v4_addr));
-	iface->mcast_addr = MCAST_ADDR;
-out:
-	close(sock);
-	return ret;
-}
-
-static int
-get_iface_ipv6(struct interface *iface)
-{
-	struct sockaddr_in6 addr = {AF_INET6, 0, iface->ifindex, IN6ADDR_ANY_INIT, 0};
-	socklen_t alen = sizeof(addr);
-	int sock, ret = -1;
-
-	if (cfg_proto && (cfg_proto != 6))
-		return -1;
-
-	addr.sin6_addr.s6_addr[0] = 0xff;
-	addr.sin6_addr.s6_addr[1] = 0x02;
-	addr.sin6_addr.s6_addr[15] = 0x01;
-
-	sock = socket(AF_INET6, SOCK_RAW, IPPROTO_ICMPV6);
-	connect(sock, (struct sockaddr*)&addr, sizeof(addr));
-	ret = getsockname(sock, (struct sockaddr*)&addr, &alen);
-	if (!ret) {
-		memcpy(&iface->v6_addr, &addr.sin6_addr, sizeof(iface->v6_addr));
-		iface->mcast_addr = MCAST_ADDR6;
-		iface->v6 = 1;
-	}
-	close(sock);
-	return ret;
-}
-
-static int _interface_add(const char *name, int v6)
+static struct interface* _interface_add(const char *name, int v6)
 {
 	struct interface *iface;
 	char *name_buf;
@@ -413,30 +451,68 @@ static int _interface_add(const char *name, int v6)
 	iface->id = id_buf;
 	iface->ifindex = if_nametoindex(name);
 	iface->fd.fd = -1;
+	iface->v6 = v6;
+	if (v6)
+		iface->mcast_addr = MCAST_ADDR6;
+	else
+		iface->mcast_addr = MCAST_ADDR;
 
 	if (iface->ifindex <= 0)
 		goto error;
 
-	if (!v6 && get_iface_ipv4(iface))
-		goto error;
-
-	if (v6 && get_iface_ipv6(iface))
-		goto error;
-
 	vlist_add(&interfaces, &iface->node, iface->id);
-	return 0;
+	return iface;
 
 error:
 	free(iface);
-	return -1;
+	return NULL;
 }
 
 int interface_add(const char *name)
 {
-	int v4 = _interface_add(name, 0);
-	int v6 = _interface_add(name, 1);
+	struct interface *v4 = NULL, *v6 = NULL;
+	struct ifaddrs *ifap, *ifa;
 
-	return v4 && v6;
+	getifaddrs(&ifap);
+
+	for (ifa = ifap; ifa; ifa = ifa->ifa_next) {
+		if (strcmp(ifa->ifa_name, name))
+			continue;
+		if (ifa->ifa_addr->sa_family == AF_INET && !v4) {
+			struct sockaddr_in *sa;
+
+			if (cfg_proto && (cfg_proto != 4))
+				continue;
+
+			v4 = _interface_add(name, 0);
+			if (!v4)
+				continue;
+
+			sa = (struct sockaddr_in *) ifa->ifa_addr;
+			memcpy(&v4->v4_addr, &sa->sin_addr, sizeof(v4->v4_addr));
+		}
+
+		if (ifa->ifa_addr->sa_family == AF_INET6 && !v6) {
+			uint8_t ll_prefix[] = {0xfe, 0x80 };
+			struct sockaddr_in6 *sa6;
+
+			if (cfg_proto && (cfg_proto != 6))
+				continue;
+
+			sa6 = (struct sockaddr_in6 *) ifa->ifa_addr;
+			if (memcmp(&sa6->sin6_addr, &ll_prefix, 2))
+				continue;
+
+			v6 = _interface_add(name, 1);
+			if (!v6)
+				continue;
+			memcpy(&v6->v6_addr, &sa6->sin6_addr, sizeof(v6->v6_addr));
+		}
+	}
+
+	freeifaddrs(ifap);
+
+	return !v4 && !v6;
 }
 
 VLIST_TREE(interfaces, avl_strcmp, iface_update_cb, false, false);

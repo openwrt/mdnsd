@@ -345,7 +345,7 @@ parse_question(struct interface *iface, char *name, struct dns_question *q)
 }
 
 void
-dns_handle_packet(struct interface *iface, uint8_t *buffer, int len)
+dns_handle_packet(struct interface *iface, uint8_t *buffer, int len, int unicast)
 {
 	struct dns_header *h;
 	uint8_t *b = buffer;
