@@ -95,13 +95,9 @@ dns_send_question(struct interface *iface, const char *question, int type, int u
 
 	iov[1].iov_len = len;
 
-	if (unicast == iface->multicast)
-		iface = iface->peer;
-
+	DBG(1, "Q <- %s %s\n", dns_type_string(type), question);
 	if (interface_send_packet(iface, iov, ARRAY_SIZE(iov)) < 0)
-		fprintf(stderr, "failed to send question\n");
-	else
-		DBG(1, "Q <- %s %s\n", dns_type_string(type), question);
+		perror("failed to send question :");
 }
 
 

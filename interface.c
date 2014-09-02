@@ -184,7 +184,7 @@ read_socket4(struct uloop_fd *u, unsigned int events)
 
 		default:
 			fprintf(stderr, "unknown cmsg %x\n", cmsgptr->cmsg_type);
-			break;
+			return;
 		}
 	}
 
@@ -217,12 +217,14 @@ read_socket6(struct uloop_fd *u, unsigned int events)
 	struct interface *iface = container_of(u, struct interface, fd);
 	static uint8_t buffer[8 * 1024];
 	struct iovec iov[1];
-	char cmsg6[CMSG_SPACE(sizeof(struct in6_pktinfo)) + 1];
+	char cmsg6[CMSG_SPACE(sizeof(struct in6_pktinfo)) + CMSG_SPACE(sizeof(int)) + 1];
 	struct cmsghdr *cmsgptr;
 	struct msghdr msg;
 	socklen_t len;
 	struct sockaddr_in6 from;
 	int flags = 0, ifindex = -1;
+	int ttl = 0;
+	struct in6_pktinfo *inp = NULL;
 
 	if (u->eof) {
 		interface_close(iface);
@@ -235,7 +237,7 @@ read_socket6(struct uloop_fd *u, unsigned int events)
 
 	memset(&msg, 0, sizeof(msg));
 	msg.msg_name = (struct sockaddr *) &from;
-	msg.msg_namelen = (iface->v6) ? (sizeof(struct sockaddr_in6)) : (sizeof(struct sockaddr_in));
+	msg.msg_namelen = sizeof(struct sockaddr_in6);
 	msg.msg_iov = iov;
 	msg.msg_iovlen = 1;
 	msg.msg_control = &cmsg6;
@@ -249,12 +251,37 @@ read_socket6(struct uloop_fd *u, unsigned int events)
 	for (cmsgptr = CMSG_FIRSTHDR(&msg); cmsgptr != NULL; cmsgptr = CMSG_NXTHDR(&msg, cmsgptr)) {
 		void *c = CMSG_DATA(cmsgptr);
 
-		if (cmsgptr->cmsg_level == IPPROTO_IP && cmsgptr->cmsg_type == IP_PKTINFO)
-			ifindex = ((struct in_pktinfo *) c)->ipi_ifindex;
-		else if (cmsgptr->cmsg_level == IPPROTO_IPV6 && cmsgptr->cmsg_type == IPV6_PKTINFO)
-			ifindex = ((struct in6_pktinfo *) c)->ipi6_ifindex;
+		switch (cmsgptr->cmsg_type) {
+		case IPV6_PKTINFO:
+			inp = ((struct in6_pktinfo *) c);
+			break;
+
+		case IPV6_HOPLIMIT:
+			ttl = (uint8_t) *((int *) c);
+			break;
+
+		default:
+			fprintf(stderr, "unknown cmsg %x\n", cmsgptr->cmsg_type);
+			return;
+		}
 	}
-	if (ifindex != iface->ifindex)
+
+	if (ttl != 255)
+		return;
+
+	if (debug > 1) {
+		char buf[256];
+
+		fprintf(stderr, "iface: %s\n", iface->name);
+		fprintf(stderr, "  v6: %d\n", iface->v6);
+		fprintf(stderr, "  multicast: %d\n", iface->multicast);
+		inet_ntop(AF_INET6, &from.sin6_addr, buf, 256);
+		fprintf(stderr, "  src %s:%d\n", buf, from.sin6_port);
+		inet_ntop(AF_INET6, &inp->ipi6_addr, buf, 256);
+		fprintf(stderr, "  dst %s\n", buf);
+	}
+
+	if (inp->ipi6_ifindex != iface->ifindex)
 		fprintf(stderr, "invalid iface index %d != %d\n", ifindex, iface->ifindex);
 	else
 		dns_handle_packet(iface, buffer, len, 0);
@@ -363,9 +390,10 @@ reconnect_socket4(struct uloop_timeout *timeout)
 	}
 
 	uloop_fd_add(&iface->fd, ULOOP_READ);
-	dns_send_question(iface, "_services._dns-sd._udp.local", TYPE_PTR, 1);
-	if (iface->multicast)
+	if (iface->multicast) {
+		dns_send_question(iface, "_services._dns-sd._udp.local", TYPE_PTR, 1);
 		announce_init(iface);
+	}
 
 	return;
 
@@ -381,7 +409,7 @@ reconnect_socket6(struct uloop_timeout *timeout)
 	int ttl = 255;
 	int yes = 1;
 
-	snprintf(mcast_addr, sizeof(mcast_addr), "%s%%%s", iface->mcast_addr, iface->name);
+	snprintf(mcast_addr, sizeof(mcast_addr), "%s%%%s", (iface->multicast) ? (iface->mcast_addr) : (iface->v6_addrs), iface->name);
 	iface->fd.fd = usock(USOCK_UDP | USOCK_SERVER | USOCK_NONBLOCK | USOCK_IPV6ONLY, mcast_addr, "5353");
 	if (iface->fd.fd < 0) {
 		fprintf(stderr, "failed to add listener %s: %s\n", mcast_addr, strerror(errno));
@@ -406,8 +434,12 @@ reconnect_socket6(struct uloop_timeout *timeout)
 	}
 
 	uloop_fd_add(&iface->fd, ULOOP_READ);
-	dns_send_question(iface, "_services._dns-sd._udp.local", TYPE_PTR, 1);
-	announce_init(iface);
+
+	if (iface->multicast) {
+		dns_send_question(iface, "_services._dns-sd._udp.local", TYPE_PTR, 1);
+		announce_init(iface);
+	}
+
 	return;
 
 retry:
@@ -452,9 +484,9 @@ static struct interface* _interface_add(const char *name, int multicast, int v6)
 
 	iface = calloc_a(sizeof(*iface),
 		&name_buf, strlen(name) + 1,
-		&id_buf, strlen(name) + 3);
+		&id_buf, strlen(name) + 5);
 
-	sprintf(id_buf, "%d_%s", v6, name);
+	sprintf(id_buf, "%d_%d_%s", multicast, v6, name);
 	iface->name = strcpy(name_buf, name);
 	iface->id = id_buf;
 	iface->ifindex = if_nametoindex(name);
@@ -493,20 +525,18 @@ int interface_add(const char *name)
 			if (cfg_proto && (cfg_proto != 4))
 				continue;
 
-			v4 = _interface_add(name, 1, 0);
-			if (!v4)
-				continue;
-
-			sa = (struct sockaddr_in *) ifa->ifa_addr;
-			memcpy(&v4->v4_addr, &sa->sin_addr, sizeof(v4->v4_addr));
-			inet_ntop(AF_INET, &sa->sin_addr, v4->v4_addrs, sizeof(v4->v4_addrs));
-
 			unicast = _interface_add(name, 0, 0);
 			if (!unicast)
 				continue;
-
+			sa = (struct sockaddr_in *) ifa->ifa_addr;
 			memcpy(&unicast->v4_addr, &sa->sin_addr, sizeof(unicast->v4_addr));
 			inet_ntop(AF_INET, &sa->sin_addr, unicast->v4_addrs, sizeof(unicast->v4_addrs));
+
+			v4 = _interface_add(name, 1, 0);
+			if (!v4)
+				continue;
+			memcpy(&v4->v4_addr, &sa->sin_addr, sizeof(v4->v4_addr));
+			inet_ntop(AF_INET, &sa->sin_addr, v4->v4_addrs, sizeof(v4->v4_addrs));
 
 			v4->peer = unicast;
 			unicast->peer = v4;
@@ -523,18 +553,17 @@ int interface_add(const char *name)
 			if (memcmp(&sa6->sin6_addr, &ll_prefix, 2))
 				continue;
 
+			unicast = _interface_add(name, 0, 1);
+			if (!unicast)
+				continue;
+			memcpy(&unicast->v6_addr, &sa6->sin6_addr, sizeof(unicast->v6_addr));
+			inet_ntop(AF_INET6, &sa6->sin6_addr, unicast->v6_addrs, sizeof(unicast->v6_addrs));
+
 			v6 = _interface_add(name, 1, 1);
 			if (!v6)
 				continue;
 			memcpy(&v6->v6_addr, &sa6->sin6_addr, sizeof(v6->v6_addr));
 			inet_ntop(AF_INET6, &sa6->sin6_addr, v6->v6_addrs, sizeof(v6->v6_addrs));
-
-			unicast = _interface_add(name, 0, 1);
-			if (!unicast)
-				continue;
-
-			memcpy(&unicast->v6_addr, &sa6->sin6_addr, sizeof(unicast->v6_addr));
-			inet_ntop(AF_INET6, &sa6->sin6_addr, unicast->v6_addrs, sizeof(unicast->v6_addrs));
 
 			v6->peer = unicast;
 			unicast->peer = v6;
