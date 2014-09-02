@@ -50,6 +50,7 @@ struct interface {
 };
 
 int interface_add(const char *name);
+void interface_shutdown(void);
 int interface_send_packet(struct interface *iface, struct iovec *iov, int iov_len);
 
 #endif

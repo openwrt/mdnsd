@@ -331,7 +331,7 @@ parse_question(struct interface *iface, char *name, struct dns_question *q)
 		break;
 
 	case TYPE_PTR:
-		service_announce_services(iface, name);
+		service_announce_services(iface, name, announce_ttl);
 		service_reply(iface, name, announce_ttl);
 		break;
 
@@ -341,7 +341,7 @@ parse_question(struct interface *iface, char *name, struct dns_question *q)
 		if (host)
 			*host = '\0';
 		if (!strcmp(mdns_hostname, name))
-			service_reply_a(iface, q->type, announce_ttl);
+			service_reply_a(iface, announce_ttl);
 		break;
 	};
 }

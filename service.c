@@ -124,7 +124,7 @@ service_timeout(struct service *s)
 }
 
 void
-service_reply_a(struct interface *iface, int type, int ttl)
+service_reply_a(struct interface *iface, int ttl)
 {
 	struct ifaddrs *ifap, *ifa;
 	struct sockaddr_in *sa;
@@ -136,11 +136,11 @@ service_reply_a(struct interface *iface, int type, int ttl)
 	for (ifa = ifap; ifa; ifa = ifa->ifa_next) {
 		if (strcmp(ifa->ifa_name, iface->name))
 			continue;
-		if (ifa->ifa_addr->sa_family==AF_INET) {
+		if (ifa->ifa_addr->sa_family == AF_INET) {
 			sa = (struct sockaddr_in *) ifa->ifa_addr;
 			dns_add_answer(TYPE_A, (uint8_t *) &sa->sin_addr, 4, ttl);
 		}
-		if (ifa->ifa_addr->sa_family==AF_INET6) {
+		if (ifa->ifa_addr->sa_family == AF_INET6) {
 			uint8_t ll_prefix[] = {0xfe, 0x80 };
 			sa6 = (struct sockaddr_in6 *) ifa->ifa_addr;
 			if (!memcmp(&sa6->sin6_addr, &ll_prefix, 2))
@@ -188,11 +188,12 @@ service_reply(struct interface *iface, const char *match, int ttl)
 	if (match)
 		return;
 
-	service_reply_a(iface, TYPE_A, ttl);
+	if (ttl)
+		service_reply_a(iface, ttl);
 }
 
 void
-service_announce_services(struct interface *iface, const char *service)
+service_announce_services(struct interface *iface, const char *service, int ttl)
 {
 	struct service *s;
 	int tcp = 1;
@@ -208,21 +209,23 @@ service_announce_services(struct interface *iface, const char *service)
 		if (!strstr(s->service, "._udp") && !tcp)
 			continue;
 		s->t = 0;
-		dns_init_answer();
-		service_add_ptr(s->service, announce_ttl);
-		if (tcp)
-			dns_send_answer(iface, sdtcp);
-		else
-			dns_send_answer(iface, sdudp);
-		service_reply(iface, s->service, announce_ttl);
+		if (ttl) {
+			dns_init_answer();
+			service_add_ptr(s->service, ttl);
+			if (tcp)
+				dns_send_answer(iface, sdtcp);
+			else
+				dns_send_answer(iface, sdudp);
+		}
+		service_reply(iface, s->service, ttl);
 	}
 }
 
 void
-service_announce(struct interface *iface)
+service_announce(struct interface *iface, int ttl)
 {
-	service_announce_services(iface, sdudp);
-	service_announce_services(iface, sdtcp);
+	service_announce_services(iface, sdudp, ttl);
+	service_announce_services(iface, sdtcp, ttl);
 }
 
 static void

@@ -38,6 +38,7 @@
 #include "util.h"
 #include "dns.h"
 #include "announce.h"
+#include "service.h"
 
 static int
 interface_send_packet4(struct interface *iface, struct iovec *iov, int iov_len)
@@ -582,6 +583,19 @@ int interface_add(const char *name)
 	freeifaddrs(ifap);
 
 	return !v4 && !v6;
+}
+
+void interface_shutdown(void)
+{
+	struct interface *iface;
+
+	vlist_for_each_element(&interfaces, iface, node)
+		if (iface->fd.fd > 0 && iface->multicast) {
+			service_announce(iface, 0);
+			service_reply_a(iface, 0);
+		}
+	vlist_for_each_element(&interfaces, iface, node)
+		interface_free(iface);
 }
 
 VLIST_TREE(interfaces, avl_strcmp, iface_update_cb, false, false);

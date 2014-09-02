@@ -92,6 +92,7 @@ main(int argc, char **argv)
 	uloop_run();
 	uloop_done();
 
+	interface_shutdown();
 	cache_cleanup();
 	service_cleanup();
 	vlist_flush(&interfaces);

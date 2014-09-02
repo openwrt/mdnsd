@@ -16,9 +16,9 @@
 
 extern void service_init(int announce);
 extern void service_cleanup(void);
-extern void service_announce(struct interface *iface);
-extern void service_announce_services(struct interface *iface, const char *service);
+extern void service_announce(struct interface *iface, int ttl);
+extern void service_announce_services(struct interface *iface, const char *service, int ttl);
 extern void service_reply(struct interface *iface, const char *match, int ttl);
-extern void service_reply_a(struct interface *iface, int type, int ttl);
+extern void service_reply_a(struct interface *iface, int ttl);
 
 #endif

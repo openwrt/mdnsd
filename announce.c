@@ -64,7 +64,7 @@ announce_timer(struct uloop_timeout *timeout)
 			iface->announce_state++;
 
 		case STATE_ANNOUNCE:
-			service_announce(iface);
+			service_announce(iface, announce_ttl);
 			uloop_timeout_set(timeout, announce_ttl * 800);
 			break;
 	}
