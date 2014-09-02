@@ -110,6 +110,11 @@ interface_send_packet6(struct interface *iface, struct iovec *iov, int iov_len)
 int
 interface_send_packet(struct interface *iface, struct iovec *iov, int iov_len)
 {
+	if (debug > 1) {
+		fprintf(stderr, "TX ipv%d: %s\n", iface->v6 * 2 + 4, iface->name);
+		fprintf(stderr, "  multicast: %d\n", iface->multicast);
+	}
+
 	if (iface->v6)
 		return interface_send_packet6(iface, iov, iov_len);
 
@@ -194,8 +199,7 @@ read_socket4(struct uloop_fd *u, unsigned int events)
 	if (debug > 1) {
 		char buf[256];
 
-		fprintf(stderr, "iface: %s\n", iface->name);
-		fprintf(stderr, "  v6: %d\n", iface->v6);
+		fprintf(stderr, "RX ipv4: %s\n", iface->name);
 		fprintf(stderr, "  multicast: %d\n", iface->multicast);
 		inet_ntop(AF_INET, &from.sin_addr, buf, 256);
 		fprintf(stderr, "  src %s:%d\n", buf, from.sin_port);
@@ -272,8 +276,7 @@ read_socket6(struct uloop_fd *u, unsigned int events)
 	if (debug > 1) {
 		char buf[256];
 
-		fprintf(stderr, "iface: %s\n", iface->name);
-		fprintf(stderr, "  v6: %d\n", iface->v6);
+		fprintf(stderr, "RX ipv6: %s\n", iface->name);
 		fprintf(stderr, "  multicast: %d\n", iface->multicast);
 		inet_ntop(AF_INET6, &from.sin6_addr, buf, 256);
 		fprintf(stderr, "  src %s:%d\n", buf, from.sin6_port);
