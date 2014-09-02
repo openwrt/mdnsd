@@ -595,7 +595,7 @@ void interface_shutdown(void)
 			service_reply_a(iface, 0);
 		}
 	vlist_for_each_element(&interfaces, iface, node)
-		interface_free(iface);
+		interface_close(iface);
 }
 
 VLIST_TREE(interfaces, avl_strcmp, iface_update_cb, false, false);
