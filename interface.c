@@ -378,6 +378,9 @@ reconnect_socket4(struct uloop_timeout *timeout)
 		goto retry;
 	}
 
+	if (setsockopt(iface->fd.fd, SOL_SOCKET, SO_BINDTODEVICE, iface->name, strlen(iface->name) < 0))
+		fprintf(stderr, "ioctl failed: SO_BINDTODEVICE\n");
+
 	if (setsockopt(iface->fd.fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) < 0)
 		fprintf(stderr, "ioctl failed: SO_REUSEADDR\n");
 
@@ -418,6 +421,9 @@ reconnect_socket6(struct uloop_timeout *timeout)
 		fprintf(stderr, "failed to add listener %s: %s\n", mcast_addr, strerror(errno));
 		goto retry;
 	}
+
+	if (setsockopt(iface->fd.fd, SOL_SOCKET, SO_BINDTODEVICE, iface->name, strlen(iface->name) < 0))
+		fprintf(stderr, "ioctl failed: SO_BINDTODEVICE\n");
 
 	if (setsockopt(iface->fd.fd, IPPROTO_IPV6, IPV6_UNICAST_HOPS, &ttl, sizeof(ttl)) < 0)
 		fprintf(stderr, "ioctl failed: IPV6_UNICAST_HOPS\n");
