@@ -188,20 +188,26 @@ read_socket4(struct uloop_fd *u, unsigned int events)
 		}
 	}
 
-	if (0) {
+	if (ttl != 255)
+		return;
+
+	if (debug > 1) {
 		char buf[256];
 
+		fprintf(stderr, "iface: %s\n", iface->name);
+		fprintf(stderr, "  v6: %d\n", iface->v6);
+		fprintf(stderr, "  multicast: %d\n", iface->multicast);
 		inet_ntop(AF_INET, &from.sin_addr, buf, 256);
-		fprintf(stderr, "%s:%s[%d]%s:%d\n", __FILE__, __func__, __LINE__, buf, from.sin_port);
+		fprintf(stderr, "  src %s:%d\n", buf, from.sin_port);
 		inet_ntop(AF_INET, &inp->ipi_spec_dst, buf, 256);
-		fprintf(stderr, "%s:%s[%d]%s:%d\n", __FILE__, __func__, __LINE__, buf, from.sin_port);
+		fprintf(stderr, "  dst %s\n", buf);
 		inet_ntop(AF_INET, &inp->ipi_addr, buf, 256);
-		fprintf(stderr, "%s:%s[%d]%s:%d\n", __FILE__, __func__, __LINE__, buf, from.sin_port);
+		fprintf(stderr, "  real %s\n", buf);
 	}
 
 	if (inp->ipi_ifindex != iface->ifindex)
 		fprintf(stderr, "invalid iface index %d != %d\n", ifindex, iface->ifindex);
-	else if (ttl == 255)
+	else
 		dns_handle_packet(iface, buffer, len, 0);
 }
 
