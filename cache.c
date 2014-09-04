@@ -239,7 +239,7 @@ cache_answer(struct interface *iface, uint8_t *base, int blen, char *name, struc
 			return;
 		}
 
-		DBG(1, "A -> %s %s %s\n", dns_type_string(a->type), name, rdata_buffer);
+		DBG(1, "A -> %s %s %s ttl:%d\n", dns_type_string(a->type), name, rdata_buffer, a->ttl);
 
 		rdlength = strlen(rdata_buffer);
 
