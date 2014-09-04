@@ -29,6 +29,7 @@ struct cache_service {
 	uint32_t ttl;
 	time_t time;
 	struct interface *iface;
+	int refresh;
 };
 
 struct cache_record {

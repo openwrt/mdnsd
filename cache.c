@@ -61,9 +61,9 @@ cache_service_free(struct cache_service *s)
 }
 
 static int
-cache_is_expired(time_t t, uint32_t ttl)
+cache_is_expired(time_t t, uint32_t ttl, int frac)
 {
-	if (time(NULL) - t >= ttl)
+	if (time(NULL) - t >= ttl * frac / 100)
 		return 1;
 
 	return 0;
@@ -76,14 +76,20 @@ cache_gc_timer(struct uloop_timeout *timeout)
 	struct cache_service *s, *t;
 
 	avl_for_each_element_safe(&records, r, avl, p)
-		if (cache_is_expired(r->time, r->ttl))
+		if (cache_is_expired(r->time, r->ttl, 100))
 			cache_record_free(r);
 
 	avl_for_each_element_safe(&services, s, avl, t) {
 		if (!s->host)
 			continue;
-		if (cache_is_expired(s->time, s->ttl))
+		if (!cache_is_expired(s->time, s->ttl, s->refresh))
+			continue;
+		if (s->refresh >= 100) {
 			cache_service_free(s);
+			continue;
+		}
+		s->refresh += 50;
+		dns_send_question(s->iface, s->entry, TYPE_PTR, 1);
 	}
 
 	uloop_timeout_set(timeout, 10000);
@@ -134,8 +140,11 @@ cache_service(struct interface *iface, char *entry, int hlen, int ttl)
 	char *type;
 
 	avl_for_each_element_safe(&services, s, avl, t)
-		if (!strcmp(s->entry, entry))
+		if (!strcmp(s->entry, entry)) {
+			s->refresh = 50;
+			s->time = time(NULL);
 			return s;
+		}
 
 	s = calloc_a(sizeof(*s),
 		&entry_buf, strlen(entry) + 1,
@@ -145,6 +154,7 @@ cache_service(struct interface *iface, char *entry, int hlen, int ttl)
 	s->time = time(NULL);
 	s->ttl = ttl;
 	s->iface = iface;
+	s->refresh = 50;
 
 	if (hlen)
 		s->host = strncpy(host_buf, s->entry, hlen);
