@@ -19,6 +19,7 @@
 #include <libubox/blob.h>
 
 #include "dns.h"
+#include "interface.h"
 
 struct cache_service {
 	struct avl_node avl;
@@ -27,6 +28,7 @@ struct cache_service {
 	const char *host;
 	uint32_t ttl;
 	time_t time;
+	struct interface *iface;
 };
 
 struct cache_record {
@@ -40,13 +42,14 @@ struct cache_record {
 	const uint8_t *rdata;
 	uint16_t rdlength;
 	time_t time;
+	struct interface *iface;
 };
 
 extern struct avl_tree services;
 
 int cache_init(void);
 void cache_scan(void);
-void cache_cleanup(void);
+void cache_cleanup(struct interface *iface);
 void cache_answer(struct interface *iface, uint8_t *base, int blen,
 		  char *name, struct dns_answer *a, uint8_t *rdata, int flush);
 int cache_host_is_known(char *record);

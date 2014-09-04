@@ -100,16 +100,18 @@ cache_init(void)
 	return 0;
 }
 
-void cache_cleanup(void)
+void cache_cleanup(struct interface *iface)
 {
 	struct cache_record *r, *p;
 	struct cache_service *s, *t;
 
-	avl_for_each_element_safe(&records, r, avl, p)
-		cache_record_free(r);
-
 	avl_for_each_element_safe(&services, s, avl, t)
-		cache_service_free(s);
+		if (!iface || iface == s->iface)
+			cache_service_free(s);
+
+	avl_for_each_element_safe(&records, r, avl, p)
+		if (!iface || iface == r->iface)
+			cache_record_free(r);
 }
 
 void
@@ -142,6 +144,7 @@ cache_service(struct interface *iface, char *entry, int hlen, int ttl)
 	s->avl.key = s->entry = strcpy(entry_buf, entry);
 	s->time = time(NULL);
 	s->ttl = ttl;
+	s->iface = iface;
 
 	if (hlen)
 		s->host = strncpy(host_buf, s->entry, hlen);
@@ -320,6 +323,7 @@ cache_answer(struct interface *iface, uint8_t *base, int blen, char *name, struc
 	r->port = port;
 	r->rdlength = dlen;
 	r->time = time(NULL);
+	r->iface = iface;
 
 	if (tlen)
 		r->txt = memcpy(txt_ptr, rdata_buffer, tlen);
