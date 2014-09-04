@@ -213,7 +213,7 @@ read_socket4(struct uloop_fd *u, unsigned int events)
 	if (inp->ipi_ifindex != iface->ifindex)
 		fprintf(stderr, "invalid iface index %d != %d\n", ifindex, iface->ifindex);
 	else
-		dns_handle_packet(iface, buffer, len, 0);
+		dns_handle_packet(iface, (struct sockaddr *) &from, from.sin_port, buffer, len);
 }
 
 static void
@@ -288,7 +288,7 @@ read_socket6(struct uloop_fd *u, unsigned int events)
 	if (inp->ipi6_ifindex != iface->ifindex)
 		fprintf(stderr, "invalid iface index %d != %d\n", ifindex, iface->ifindex);
 	else
-		dns_handle_packet(iface, buffer, len, 0);
+		dns_handle_packet(iface, (struct sockaddr *) &from, from.sin6_port, buffer, len);
 }
 
 static int

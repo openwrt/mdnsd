@@ -15,6 +15,7 @@
 #define _DNS_H__
 
 #include <stdint.h>
+#include <arpa/inet.h>
 
 #define FLAG_RESPONSE		0x8000
 #define FLAG_AUTHORATIVE	0x0400
@@ -75,6 +76,6 @@ void dns_init_answer(void);
 void dns_add_answer(int type, const uint8_t *rdata, uint16_t rdlength, int ttl);
 void dns_send_answer(struct interface *iface, const char *answer);
 const char* dns_type_string(uint16_t type);
-void dns_handle_packet(struct interface *iface, uint8_t *buf, int len, int unicast);
+void dns_handle_packet(struct interface *iface, struct sockaddr *s, uint16_t port, uint8_t *buf, int len);
 
 #endif
