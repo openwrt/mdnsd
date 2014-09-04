@@ -139,6 +139,25 @@ static void interface_free(struct interface *iface)
 	free(iface);
 }
 
+static int
+interface_valid_src(void *ip1, void *mask, void *ip2, int len)
+{
+	uint8_t *i1 = ip1;
+	uint8_t *i2 = ip2;
+	uint8_t *m = mask;
+	int i;
+
+	if (cfg_no_subnet)
+		return 0;
+
+	for (i = 0; i < len; i++, i1++, i2++, m++) {
+		if ((*i1 & *m) != (*i2 & *m))
+			return -1;
+	}
+
+	return 0;
+}
+
 static void
 read_socket4(struct uloop_fd *u, unsigned int events)
 {
@@ -212,7 +231,7 @@ read_socket4(struct uloop_fd *u, unsigned int events)
 
 	if (inp->ipi_ifindex != iface->ifindex)
 		fprintf(stderr, "invalid iface index %d != %d\n", ifindex, iface->ifindex);
-	else
+	else if (!interface_valid_src((void *) &iface->v4_addr, (void *) &iface->v4_netmask, (void *) &from.sin_addr, 4))
 		dns_handle_packet(iface, (struct sockaddr *) &from, from.sin_port, buffer, len);
 }
 
@@ -287,7 +306,7 @@ read_socket6(struct uloop_fd *u, unsigned int events)
 
 	if (inp->ipi6_ifindex != iface->ifindex)
 		fprintf(stderr, "invalid iface index %d != %d\n", ifindex, iface->ifindex);
-	else
+	else if (!interface_valid_src((void *) &iface->v4_addr, (void *) &iface->v4_netmask, (void *) &from.sin6_addr, 16))
 		dns_handle_packet(iface, (struct sockaddr *) &from, from.sin6_port, buffer, len);
 }
 
@@ -538,15 +557,20 @@ int interface_add(const char *name)
 			unicast = _interface_add(name, 0, 0);
 			if (!unicast)
 				continue;
-			sa = (struct sockaddr_in *) ifa->ifa_addr;
-			memcpy(&unicast->v4_addr, &sa->sin_addr, sizeof(unicast->v4_addr));
-			inet_ntop(AF_INET, &sa->sin_addr, unicast->v4_addrs, sizeof(unicast->v4_addrs));
-
 			v4 = _interface_add(name, 1, 0);
 			if (!v4)
 				continue;
+
+			sa = (struct sockaddr_in *) ifa->ifa_addr;
 			memcpy(&v4->v4_addr, &sa->sin_addr, sizeof(v4->v4_addr));
+			memcpy(&unicast->v4_addr, &sa->sin_addr, sizeof(unicast->v4_addr));
+
 			inet_ntop(AF_INET, &sa->sin_addr, v4->v4_addrs, sizeof(v4->v4_addrs));
+			inet_ntop(AF_INET, &sa->sin_addr, unicast->v4_addrs, sizeof(unicast->v4_addrs));
+
+			sa = (struct sockaddr_in *) ifa->ifa_netmask;
+			memcpy(&unicast->v4_netmask, &sa->sin_addr, sizeof(unicast->v4_netmask));
+			memcpy(&v4->v4_netmask, &sa->sin_addr, sizeof(v4->v4_netmask));
 
 			v4->peer = unicast;
 			unicast->peer = v4;
@@ -566,14 +590,19 @@ int interface_add(const char *name)
 			unicast = _interface_add(name, 0, 1);
 			if (!unicast)
 				continue;
-			memcpy(&unicast->v6_addr, &sa6->sin6_addr, sizeof(unicast->v6_addr));
-			inet_ntop(AF_INET6, &sa6->sin6_addr, unicast->v6_addrs, sizeof(unicast->v6_addrs));
-
 			v6 = _interface_add(name, 1, 1);
 			if (!v6)
 				continue;
+
 			memcpy(&v6->v6_addr, &sa6->sin6_addr, sizeof(v6->v6_addr));
+			memcpy(&unicast->v6_addr, &sa6->sin6_addr, sizeof(unicast->v6_addr));
+
 			inet_ntop(AF_INET6, &sa6->sin6_addr, v6->v6_addrs, sizeof(v6->v6_addrs));
+			inet_ntop(AF_INET6, &sa6->sin6_addr, unicast->v6_addrs, sizeof(unicast->v6_addrs));
+
+			sa6 = (struct sockaddr_in6 *) ifa->ifa_netmask;
+			memcpy(&v6->v6_netmask, &sa6->sin6_addr, sizeof(v6->v6_netmask));
+			memcpy(&unicast->v6_netmask, &sa6->sin6_addr, sizeof(unicast->v6_netmask));
 
 			v6->peer = unicast;
 			unicast->peer = v6;

@@ -39,7 +39,9 @@ struct interface {
 	int ifindex;
 
 	struct in_addr v4_addr;
+	struct in_addr v4_netmask;
 	struct in6_addr v6_addr;
+	struct in6_addr v6_netmask;
 	char v4_addrs[16];
 	char v6_addrs[64];
 

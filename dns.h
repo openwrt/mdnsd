@@ -70,6 +70,7 @@ struct dns_question {
 
 struct interface;
 extern int cfg_proto;
+extern int cfg_no_subnet;
 
 void dns_send_question(struct interface *iface, const char *question, int type, int unicast);
 void dns_init_answer(void);

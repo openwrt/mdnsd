@@ -38,6 +38,7 @@
 #include "interface.h"
 
 int cfg_proto = 0;
+int cfg_no_subnet = 0;
 
 static void
 signal_shutdown(int signal)
@@ -52,7 +53,7 @@ main(int argc, char **argv)
 
 	uloop_init();
 
-	while ((ch = getopt(argc, argv, "t:i:d46")) != -1) {
+	while ((ch = getopt(argc, argv, "t:i:d46n")) != -1) {
 		switch (ch) {
 		case 't':
 			ttl = atoi(optarg);
@@ -73,6 +74,10 @@ main(int argc, char **argv)
 		case '6':
 			cfg_proto = 6;
 			break;
+		case 'n':
+			cfg_no_subnet = 1;
+			break;
+
 		default:
 			return -1;
 		}
