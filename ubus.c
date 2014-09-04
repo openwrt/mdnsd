@@ -52,12 +52,12 @@ mdns_browse(struct ubus_context *ctx, struct ubus_object *obj,
 		struct ubus_request_data *req, const char *method,
 		struct blob_attr *msg)
 {
-	struct cache_entry *s, *q;
+	struct cache_service *s, *q;
 	char *buffer = (char *) mdns_buf;
 	void *c1 = NULL, *c2;
 
 	blob_buf_init(&b, 0);
-	avl_for_each_element(&entries, s, avl) {
+	avl_for_each_element(&services, s, avl) {
 		char *local;
 		if (*((char *) s->avl.key) != '_')
 			continue;
@@ -81,7 +81,7 @@ mdns_browse(struct ubus_context *ctx, struct ubus_object *obj,
 		cache_dump_records(&b, s->entry);
 		blobmsg_close_table(&b, c2);
 		q = avl_next_element(s, avl);
-		if (!q || avl_is_last(&entries, &s->avl) || strcmp(s->avl.key, q->avl.key)) {
+		if (!q || avl_is_last(&services, &s->avl) || strcmp(s->avl.key, q->avl.key)) {
 			blobmsg_close_table(&b, c1);
 			c1 = NULL;
 		}
@@ -96,12 +96,12 @@ mdns_hosts(struct ubus_context *ctx, struct ubus_object *obj,
 		struct ubus_request_data *req, const char *method,
 		struct blob_attr *msg)
 {
-	struct cache_entry *s;
+	struct cache_service *s;
 	char *buffer = (char *) mdns_buf;
 	void *c;
 
 	blob_buf_init(&b, 0);
-	avl_for_each_element(&entries, s, avl) {
+	avl_for_each_element(&services, s, avl) {
 		char *local;
 		if (*((char *) s->avl.key) == '_')
 			continue;

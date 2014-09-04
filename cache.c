@@ -41,7 +41,7 @@
 #include "interface.h"
 
 static struct uloop_timeout cache_gc;
-struct avl_tree entries;
+struct avl_tree services;
 static AVL_TREE(records, avl_strcmp, true, NULL);
 
 static void
@@ -53,10 +53,10 @@ cache_record_free(struct cache_record *r)
 }
 
 static void
-cache_entry_free(struct cache_entry *s)
+cache_service_free(struct cache_service *s)
 {
 	DBG(2, "%s\n", s->entry);
-	avl_delete(&entries, &s->avl);
+	avl_delete(&services, &s->avl);
 	free(s);
 }
 
@@ -73,17 +73,17 @@ static void
 cache_gc_timer(struct uloop_timeout *timeout)
 {
 	struct cache_record *r, *p;
-	struct cache_entry *s, *t;
+	struct cache_service *s, *t;
 
 	avl_for_each_element_safe(&records, r, avl, p)
 		if (cache_is_expired(r->time, r->ttl))
 			cache_record_free(r);
 
-	avl_for_each_element_safe(&entries, s, avl, t) {
+	avl_for_each_element_safe(&services, s, avl, t) {
 		if (!s->host)
 			continue;
 		if (cache_is_expired(s->time, s->ttl))
-			cache_entry_free(s);
+			cache_service_free(s);
 	}
 
 	uloop_timeout_set(timeout, 10000);
@@ -92,7 +92,7 @@ cache_gc_timer(struct uloop_timeout *timeout)
 int
 cache_init(void)
 {
-	avl_init(&entries, avl_strcmp, true, NULL);
+	avl_init(&services, avl_strcmp, true, NULL);
 
 	cache_gc.cb = cache_gc_timer;
 	uloop_timeout_set(&cache_gc, 10000);
@@ -103,35 +103,35 @@ cache_init(void)
 void cache_cleanup(void)
 {
 	struct cache_record *r, *p;
-	struct cache_entry *s, *t;
+	struct cache_service *s, *t;
 
 	avl_for_each_element_safe(&records, r, avl, p)
 		cache_record_free(r);
 
-	avl_for_each_element_safe(&entries, s, avl, t)
-		cache_entry_free(s);
+	avl_for_each_element_safe(&services, s, avl, t)
+		cache_service_free(s);
 }
 
 void
 cache_scan(void)
 {
 	struct interface *iface;
-	struct cache_entry *s;
+	struct cache_service *s;
 
 	vlist_for_each_element(&interfaces, iface, node)
-		avl_for_each_element(&entries, s, avl)
+		avl_for_each_element(&services, s, avl)
 			dns_send_question(iface, s->entry, TYPE_PTR, 1);
 }
 
-static struct cache_entry*
-cache_entry(struct interface *iface, char *entry, int hlen, int ttl)
+static struct cache_service*
+cache_service(struct interface *iface, char *entry, int hlen, int ttl)
 {
-	struct cache_entry *s, *t;
+	struct cache_service *s, *t;
 	char *entry_buf;
 	char *host_buf;
 	char *type;
 
-	avl_for_each_element_safe(&entries, s, avl, t)
+	avl_for_each_element_safe(&services, s, avl, t)
 		if (!strcmp(s->entry, entry))
 			return s;
 
@@ -151,7 +151,7 @@ cache_entry(struct interface *iface, char *entry, int hlen, int ttl)
 		type++;
 	if (type)
 		s->avl.key = type;
-	avl_insert(&entries, &s->avl);
+	avl_insert(&services, &s->avl);
 
 	if (!hlen)
 		dns_send_question(iface, entry, TYPE_PTR, !iface->multicast);
@@ -247,7 +247,7 @@ cache_answer(struct interface *iface, uint8_t *base, int blen, char *name, struc
 		    nlen + 1 < rdlength && !strcmp(rdata_buffer + rdlength - nlen, name))
 			host_len = rdlength - nlen - 1;
 
-		cache_entry(iface, rdata_buffer, host_len, a->ttl);
+		cache_service(iface, rdata_buffer, host_len, a->ttl);
 		return;
 
 	case TYPE_SRV:
@@ -277,14 +277,14 @@ cache_answer(struct interface *iface, uint8_t *base, int blen, char *name, struc
 		break;
 
 	case TYPE_A:
-		cache_entry(iface, name, strlen(name), a->ttl);
+		cache_service(iface, name, strlen(name), a->ttl);
 		if (a->rdlength != 4)
 			return;
 		dlen = 4;
 		break;
 
 	case TYPE_AAAA:
-		cache_entry(iface, name, strlen(name), a->ttl);
+		cache_service(iface, name, strlen(name), a->ttl);
 		if (a->rdlength != 16)
 			return;
 		dlen = 16;
