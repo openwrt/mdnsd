@@ -216,7 +216,7 @@ cache_host_is_known(char *record)
 }
 
 void
-cache_answer(struct interface *iface, uint8_t *base, int blen, char *name, struct dns_answer *a, uint8_t *rdata)
+cache_answer(struct interface *iface, uint8_t *base, int blen, char *name, struct dns_answer *a, uint8_t *rdata, int flush)
 {
 	struct dns_srv_data *dsd = (struct dns_srv_data *) rdata;
 	struct cache_record *r;
@@ -226,9 +226,6 @@ cache_answer(struct interface *iface, uint8_t *base, int blen, char *name, struc
 	void *rdata_ptr, *txt_ptr;
 	int host_len = 0;
 	static char *rdata_buffer = (char *) mdns_buf;
-
-	if (!(a->class & CLASS_IN))
-		return;
 
 	nlen = strlen(name);
 

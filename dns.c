@@ -299,6 +299,9 @@ parse_answer(struct interface *iface, uint8_t *buffer, int len, uint8_t **b, int
 		return -1;
 	}
 
+	if ((a->class & ~CLASS_FLUSH) != CLASS_IN)
+		return -1;
+
 	rdata = *b;
 	if (a->rdlength > *rlen) {
 		fprintf(stderr, "dropping: bad question\n");
@@ -309,7 +312,7 @@ parse_answer(struct interface *iface, uint8_t *buffer, int len, uint8_t **b, int
 	*b += a->rdlength;
 
 	if (cache)
-		cache_answer(iface, buffer, len, name, a, rdata);
+		cache_answer(iface, buffer, len, name, a, rdata, a->class & CLASS_FLUSH);
 
 	return 0;
 }

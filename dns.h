@@ -33,6 +33,7 @@
 #define MCAST_ADDR6		"ff02::fb"
 #define MCAST_PORT		5353
 
+#define CLASS_FLUSH		0x8000
 #define CLASS_UNICAST		0x8000
 #define CLASS_IN		0x0001
 
