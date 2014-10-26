@@ -627,4 +627,13 @@ void interface_shutdown(void)
 		interface_close(iface);
 }
 
+struct interface*
+interface_get(const char *name, int v6, int multicast)
+{
+	char id_buf[32];
+	snprintf(id_buf, sizeof(id_buf), "%d_%d_%s", multicast, v6, name);
+	struct interface *iface = vlist_find(&interfaces, id_buf, iface, node);
+	return iface;
+}
+
 VLIST_TREE(interfaces, avl_strcmp, iface_update_cb, false, false);

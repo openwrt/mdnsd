@@ -54,5 +54,6 @@ struct interface {
 int interface_add(const char *name);
 void interface_shutdown(void);
 int interface_send_packet(struct interface *iface, struct iovec *iov, int iov_len);
+struct interface* interface_get(const char *name, int v6, int multicast);
 
 #endif

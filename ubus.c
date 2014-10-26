@@ -147,9 +147,61 @@ mdns_set_config(struct ubus_context *ctx, struct ubus_object *obj,
 	return 0;
 }
 
+enum query_attr {
+	QUERY_QUESTION,
+	QUERY_IFACE,
+	QUERY_TYPE,
+	QUERY_MAX
+};
+
+static const struct blobmsg_policy query_policy[QUERY_MAX] = {
+	[QUERY_QUESTION]= { "question", BLOBMSG_TYPE_STRING },
+	[QUERY_IFACE]	= { "interface", BLOBMSG_TYPE_STRING },
+	[QUERY_TYPE]	= { "type", BLOBMSG_TYPE_INT32 },
+};
+
+static int
+mdns_query(struct ubus_context *ctx, struct ubus_object *obj,
+		    struct ubus_request_data *req, const char *method,
+		    struct blob_attr *msg)
+{
+	struct blob_attr *tb[QUERY_MAX], *c;
+	const char *question = "_services._dns-sd._udp.local";
+	const char *ifname;
+	int type = TYPE_ANY;
+
+	blobmsg_parse(query_policy, QUERY_MAX, tb, blob_data(msg), blob_len(msg));
+
+	if (!(c = tb[QUERY_IFACE]))
+		return UBUS_STATUS_INVALID_ARGUMENT;
+
+	ifname = blobmsg_get_string(c);
+
+	if ((c = tb[QUERY_QUESTION]))
+		question = blobmsg_get_string(c);
+
+	if ((c = tb[QUERY_TYPE]))
+		type = blobmsg_get_u32(c);
+
+	struct interface *iface_v4 = interface_get(ifname, 0, 1);
+	struct interface *iface_v6 = interface_get(ifname, 1, 1);
+
+	if (!iface_v4 && !iface_v6)
+		return UBUS_STATUS_NOT_FOUND;
+
+	if (iface_v4)
+		dns_send_question(iface_v4, question, type, 0);
+
+	if (iface_v6)
+		dns_send_question(iface_v6, question, type, 0);
+
+	return UBUS_STATUS_OK;
+}
+
 
 static const struct ubus_method mdns_methods[] = {
 	UBUS_METHOD("set_config", mdns_set_config, config_policy),
+	UBUS_METHOD("query", mdns_query, query_policy),
 	UBUS_METHOD_NOARG("scan", mdns_scan),
 	UBUS_METHOD_NOARG("browse", mdns_browse),
 	UBUS_METHOD_NOARG("hosts", mdns_hosts),
