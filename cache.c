@@ -239,6 +239,7 @@ cache_answer(struct interface *iface, uint8_t *base, int blen, char *name, struc
 	void *rdata_ptr, *txt_ptr;
 	int host_len = 0;
 	static char *rdata_buffer = (char *) mdns_buf;
+	time_t now = monotonic_time();
 
 	nlen = strlen(name);
 
@@ -322,9 +323,10 @@ cache_answer(struct interface *iface, uint8_t *base, int blen, char *name, struc
 	if (r) {
 		if (!a->ttl) {
 			DBG(1, "D -> %s %s ttl:%d\n", dns_type_string(r->type), r->record, r->ttl);
-			r->time = monotonic_time() + 1 - r->ttl;
+			r->time = now + 1 - r->ttl;
 		} else {
 			r->ttl = a->ttl;
+			r->time = now;
 			DBG(1, "A -> %s %s ttl:%d\n", dns_type_string(r->type), r->record, r->ttl);
 		}
 		return;
@@ -343,7 +345,7 @@ cache_answer(struct interface *iface, uint8_t *base, int blen, char *name, struc
 	r->ttl = a->ttl;
 	r->port = port;
 	r->rdlength = dlen;
-	r->time = monotonic_time();
+	r->time = now;
 	r->iface = iface;
 
 	if (tlen)
