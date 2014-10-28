@@ -261,7 +261,10 @@ cache_answer(struct interface *iface, uint8_t *base, int blen, char *name, struc
 			host_len = rdlength - nlen - 1;
 
 		cache_service(iface, rdata_buffer, host_len, a->ttl);
-		return;
+
+		dlen = strlen(rdata_buffer) + 1;
+		rdata = (uint8_t*)rdata_buffer;
+		break;
 
 	case TYPE_SRV:
 		if (a->rdlength < 8)
