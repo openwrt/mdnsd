@@ -402,3 +402,76 @@ cache_dump_records(struct blob_buf *buf, const char *name)
 			break;
 	}
 }
+
+void
+cache_dump_recursive(struct blob_buf *b, const char *name, uint16_t type, struct interface *iface)
+{
+	time_t now = monotonic_time();
+	for (struct cache_record *r = avl_find_ge_element(&records, name, r, avl);
+			r && !strcmp(r->record, name);
+			r = !avl_is_last(&records, &r->avl) ? avl_next_element(r, avl) : NULL) {
+		int32_t ttl = r->ttl - (now - r->time);
+		if (ttl <= 0 || (iface && iface->ifindex != r->iface->ifindex) ||
+				(type != TYPE_ANY && type != r->type))
+			continue;
+
+		const char *txt;
+		char buf[INET6_ADDRSTRLEN];
+		void *k = blobmsg_open_table(b, NULL), *l;
+		const struct dns_srv_data *dsd = (const struct dns_srv_data*)r->rdata;
+
+		blobmsg_add_string(b, "name", r->record);
+		blobmsg_add_string(b, "type", dns_type_string(r->type));
+		blobmsg_add_u32(b, "ttl", ttl);
+
+		switch (r->type) {
+		case TYPE_TXT:
+			if ((txt = r->txt) && strlen(txt)) {
+				l = blobmsg_open_array(b, "data");
+				do {
+					blobmsg_add_string(b, NULL, txt);
+					txt = &txt[strlen(txt) + 1];
+				} while (*txt);
+				blobmsg_close_array(b, l);
+			}
+			break;
+
+		case TYPE_SRV:
+			if (r->rdlength > sizeof(*dsd)) {
+				blobmsg_add_u32(b, "priority", be16_to_cpu(dsd->priority));
+				blobmsg_add_u32(b, "weight", be16_to_cpu(dsd->weight));
+				blobmsg_add_u32(b, "port", be16_to_cpu(dsd->port));
+				blobmsg_add_string(b, "target", (const char*)&dsd[1]);
+			}
+			break;
+
+		case TYPE_PTR:
+			if (r->rdlength > 0)
+				blobmsg_add_string(b, "target", (const char*)r->rdata);
+			break;
+
+		case TYPE_A:
+			if ((r->rdlength == 4) && inet_ntop(AF_INET, r->rdata, buf, sizeof(buf)))
+				blobmsg_add_string(b, "target", buf);
+			break;
+
+		case TYPE_AAAA:
+			if ((r->rdlength == 16) && inet_ntop(AF_INET6, r->rdata, buf, sizeof(buf)))
+				blobmsg_add_string(b, "target", buf);
+			break;
+		}
+
+		blobmsg_close_table(b, k);
+
+
+		if (r->type == TYPE_PTR) {
+			cache_dump_recursive(b, (const char*)r->rdata, TYPE_SRV, iface);
+			cache_dump_recursive(b, (const char*)r->rdata, TYPE_TXT, iface);
+		}
+
+		if (r->type == TYPE_SRV) {
+			cache_dump_recursive(b, (const char*)&dsd[1], TYPE_A, iface);
+			cache_dump_recursive(b, (const char*)&dsd[1], TYPE_AAAA, iface);
+		}
+	}
+}

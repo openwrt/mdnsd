@@ -189,19 +189,31 @@ mdns_query(struct ubus_context *ctx, struct ubus_object *obj,
 	if (!iface_v4 && !iface_v6)
 		return UBUS_STATUS_NOT_FOUND;
 
-	if (iface_v4)
-		dns_send_question(iface_v4, question, type, 0);
+	if (!strcmp(method, "query")) {
+		if (iface_v4)
+			dns_send_question(iface_v4, question, type, 0);
 
-	if (iface_v6)
-		dns_send_question(iface_v6, question, type, 0);
+		if (iface_v6)
+			dns_send_question(iface_v6, question, type, 0);
 
-	return UBUS_STATUS_OK;
+		return UBUS_STATUS_OK;
+	} else if (!strcmp(method, "fetch")) {
+		blob_buf_init(&b, 0);
+		void *k = blobmsg_open_array(&b, "records");
+		cache_dump_recursive(&b, question, type, iface_v4 ? iface_v4 : iface_v6);
+		blobmsg_close_array(&b, k);
+		ubus_send_reply(ctx, req, b.head);
+		return UBUS_STATUS_OK;
+	} else {
+		return UBUS_STATUS_INVALID_ARGUMENT;
+	}
 }
 
 
 static const struct ubus_method mdns_methods[] = {
 	UBUS_METHOD("set_config", mdns_set_config, config_policy),
 	UBUS_METHOD("query", mdns_query, query_policy),
+	UBUS_METHOD("fetch", mdns_query, query_policy),
 	UBUS_METHOD_NOARG("scan", mdns_scan),
 	UBUS_METHOD_NOARG("browse", mdns_browse),
 	UBUS_METHOD_NOARG("hosts", mdns_hosts),
