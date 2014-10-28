@@ -39,6 +39,7 @@
 #include "interface.h"
 
 static char name_buffer[MAX_NAME_LEN + 1];
+static char dns_buffer[MAX_NAME_LEN];
 static struct blob_buf ans_buf;
 
 const char*
@@ -76,7 +77,7 @@ dns_send_question(struct interface *iface, const char *question, int type, int u
 			.iov_len = sizeof(h),
 		},
 		{
-			.iov_base = name_buffer,
+			.iov_base = dns_buffer,
 		},
 		{
 			.iov_base = &q,
@@ -89,7 +90,7 @@ dns_send_question(struct interface *iface, const char *question, int type, int u
 	q.class = cpu_to_be16(((unicast) ? (CLASS_UNICAST) : (0))  | 1);
 	q.type = cpu_to_be16(type);
 
-	len = dn_comp(question, (void *) name_buffer, sizeof(name_buffer), NULL, NULL);
+	len = dn_comp(question, (void *) dns_buffer, sizeof(dns_buffer), NULL, NULL);
 	if (len < 1)
 		return;
 
