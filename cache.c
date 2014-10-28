@@ -268,6 +268,14 @@ cache_answer(struct interface *iface, uint8_t *base, int blen, char *name, struc
 			return;
 
 		port = be16_to_cpu(dsd->port);
+		memcpy(rdata_buffer, dsd, sizeof(*dsd));
+		if (dn_expand(base, base + blen, (const uint8_t*)&dsd[1],
+				&rdata_buffer[sizeof(*dsd)], MAX_DATA_LEN - sizeof(*dsd)) < 0) {
+			perror("process_answer/dn_expand");
+			return;
+		}
+		dlen = sizeof(*dsd) + strlen(&rdata_buffer[sizeof(*dsd)]) + 1;
+		rdata = (uint8_t*)rdata_buffer;
 		break;
 
 	case TYPE_TXT:
