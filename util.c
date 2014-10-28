@@ -73,3 +73,10 @@ void get_hostname(void)
 	snprintf(mdns_hostname, sizeof(mdns_hostname), "%s", utsname.nodename);
 	snprintf(mdns_hostname_local, sizeof(mdns_hostname_local), "%s.local", utsname.nodename);
 }
+
+time_t monotonic_time(void)
+{
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return ts.tv_sec;
+}

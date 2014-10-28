@@ -113,7 +113,7 @@ service_add_srv(struct service *s, int ttl)
 static int
 service_timeout(struct service *s)
 {
-	time_t t = time(NULL);
+	time_t t = monotonic_time();
 
 	if (t - s->t <= TOUT_LOOKUP)
 		return 0;

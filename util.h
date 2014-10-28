@@ -15,6 +15,7 @@
 #define _UTIL_H__
 
 #include <stdint.h>
+#include <time.h>
 
 #define DBG(level, fmt, ...) do { \
 	if (debug >= level) \
@@ -31,5 +32,6 @@ extern char mdns_hostname_local[HOSTNAME_LEN + 6];
 
 extern void get_hostname(void);
 extern uint32_t rand_time_delta(uint32_t t);
+extern time_t monotonic_time(void);
 
 #endif

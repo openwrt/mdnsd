@@ -63,7 +63,7 @@ cache_service_free(struct cache_service *s)
 static int
 cache_is_expired(time_t t, uint32_t ttl, int frac)
 {
-	if (time(NULL) - t >= ttl * frac / 100)
+	if (monotonic_time() - t >= ttl * frac / 100)
 		return 1;
 
 	return 0;
@@ -142,7 +142,7 @@ cache_service(struct interface *iface, char *entry, int hlen, int ttl)
 	avl_for_each_element_safe(&services, s, avl, t)
 		if (!strcmp(s->entry, entry)) {
 			s->refresh = 50;
-			s->time = time(NULL);
+			s->time = monotonic_time();
 			return s;
 		}
 
@@ -151,7 +151,7 @@ cache_service(struct interface *iface, char *entry, int hlen, int ttl)
 		&host_buf, hlen ? hlen + 1 : 0);
 
 	s->avl.key = s->entry = strcpy(entry_buf, entry);
-	s->time = time(NULL);
+	s->time = monotonic_time();
 	s->ttl = ttl;
 	s->iface = iface;
 	s->refresh = 50;
@@ -311,7 +311,7 @@ cache_answer(struct interface *iface, uint8_t *base, int blen, char *name, struc
 	if (r) {
 		if (!a->ttl) {
 			DBG(1, "D -> %s %s ttl:%d\n", dns_type_string(r->type), r->record, r->ttl);
-			r->time = time(0) + 1 - r->ttl;
+			r->time = monotonic_time() + 1 - r->ttl;
 		} else {
 			r->ttl = a->ttl;
 			DBG(1, "A -> %s %s ttl:%d\n", dns_type_string(r->type), r->record, r->ttl);
@@ -332,7 +332,7 @@ cache_answer(struct interface *iface, uint8_t *base, int blen, char *name, struc
 	r->ttl = a->ttl;
 	r->port = port;
 	r->rdlength = dlen;
-	r->time = time(NULL);
+	r->time = monotonic_time();
 	r->iface = iface;
 
 	if (tlen)
