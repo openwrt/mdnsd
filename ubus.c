@@ -120,8 +120,15 @@ mdns_hosts(struct ubus_context *ctx, struct ubus_object *obj,
 	return UBUS_STATUS_OK;
 }
 
+enum {
+	CFG_INTERFACES,
+	CFG_KEEP,
+	CFG_MAX
+};
+
 static const struct blobmsg_policy config_policy[] = {
-	{ "interfaces", BLOBMSG_TYPE_ARRAY },
+	[CFG_INTERFACES]	= { "interfaces", BLOBMSG_TYPE_ARRAY },
+	[CFG_KEEP]		= { "keep", BLOBMSG_TYPE_BOOL },
 };
 
 static int
@@ -129,20 +136,27 @@ mdns_set_config(struct ubus_context *ctx, struct ubus_object *obj,
 		    struct ubus_request_data *req, const char *method,
 		    struct blob_attr *msg)
 {
-	struct blob_attr *data, *cur;
-	int rem;
+	struct blob_attr *data[CFG_MAX], *cur;
+	int rem, keep = false;
 
-	blobmsg_parse(config_policy, 1, &data, blob_data(msg), blob_len(msg));
-	if (!data)
+	blobmsg_parse(config_policy, CFG_MAX, data, blob_data(msg), blob_len(msg));
+	if (!data[CFG_INTERFACES])
 		return UBUS_STATUS_INVALID_ARGUMENT;
 
-	if (!blobmsg_check_attr_list(data, BLOBMSG_TYPE_STRING))
+	if (!blobmsg_check_attr_list(data[CFG_INTERFACES], BLOBMSG_TYPE_STRING))
 		return UBUS_STATUS_INVALID_ARGUMENT;
 
-	vlist_update(&interfaces);
-	blobmsg_for_each_attr(cur, data, rem)
+	keep = data[CFG_KEEP] && blobmsg_get_bool(data[CFG_KEEP]);
+	if (!keep) {
+		vlist_update(&interfaces);
+		ubus_notify(ctx, obj, "set_config", NULL, 1000);
+	}
+
+	blobmsg_for_each_attr(cur, data[CFG_INTERFACES], rem)
 		interface_add(blobmsg_data(cur));
-	vlist_flush(&interfaces);
+
+	if (!keep)
+		vlist_flush(&interfaces);
 
 	return 0;
 }
