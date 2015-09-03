@@ -21,9 +21,6 @@
 #include <stdio.h>
 #include <time.h>
 
-#include <uci.h>
-#include <uci_blob.h>
-
 #include <libubus.h>
 #include <libubox/vlist.h>
 #include <libubox/uloop.h>
