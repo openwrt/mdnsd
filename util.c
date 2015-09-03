@@ -27,6 +27,7 @@
 #include <signal.h>
 
 #include <libubox/uloop.h>
+#include <libubox/utils.h>
 
 #include "dns.h"
 #include "util.h"
