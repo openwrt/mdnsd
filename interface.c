@@ -315,7 +315,7 @@ interface_mcast_setup4(struct interface *iface)
 {
 	struct ip_mreqn mreq;
 	uint8_t ttl = 255;
-	int no = 0;
+	int yes = 1;
 	struct sockaddr_in sa = { 0 };
 	int fd = iface->fd.fd;
 
@@ -345,7 +345,7 @@ interface_mcast_setup4(struct interface *iface)
 		return -1;
 	}
 
-	if (setsockopt(fd, IPPROTO_IP, IP_MULTICAST_LOOP, &no, sizeof(no)) < 0)
+	if (setsockopt(fd, IPPROTO_IP, IP_MULTICAST_LOOP, &yes, sizeof(yes)) < 0)
 		fprintf(stderr, "ioctl failed: IP_MULTICAST_LOOP\n");
 
 	return 0;
@@ -356,7 +356,7 @@ interface_socket_setup6(struct interface *iface)
 {
 	struct ipv6_mreq mreq;
 	int ttl = 255;
-	int no = 0;
+	int yes = 1;
 	struct sockaddr_in6 sa = { 0 };
 	int fd = iface->fd.fd;
 
@@ -379,7 +379,7 @@ interface_socket_setup6(struct interface *iface)
 		return -1;
 	}
 
-	if (setsockopt(fd, IPPROTO_IPV6, IPV6_MULTICAST_LOOP, &no, sizeof(no)) < 0)
+	if (setsockopt(fd, IPPROTO_IPV6, IPV6_MULTICAST_LOOP, &yes, sizeof(yes)) < 0)
 		fprintf(stderr, "ioctl failed: IPV6_MULTICAST_LOOP\n");
 
 	return 0;
