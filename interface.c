@@ -306,7 +306,7 @@ read_socket6(struct uloop_fd *u, unsigned int events)
 
 	if (inp->ipi6_ifindex != iface->ifindex)
 		fprintf(stderr, "invalid iface index %d != %d\n", ifindex, iface->ifindex);
-	else if (!interface_valid_src((void *) &iface->v4_addr, (void *) &iface->v4_netmask, (void *) &from.sin6_addr, 16))
+	else if (!interface_valid_src((void *) &iface->v6_addr, (void *) &iface->v6_netmask, (void *) &from.sin6_addr, 16))
 		dns_handle_packet(iface, (struct sockaddr *) &from, from.sin6_port, buffer, len);
 }
 
