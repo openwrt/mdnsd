@@ -107,7 +107,7 @@ service_add_srv(struct service *s, int ttl)
 
 #define TOUT_LOOKUP	60
 
-static int
+static time_t
 service_timeout(struct service *s)
 {
 	time_t t = monotonic_time();
@@ -115,9 +115,7 @@ service_timeout(struct service *s)
 	if (t - s->t <= TOUT_LOOKUP)
 		return 0;
 
-	s->t = t;
-
-	return 1;
+	return t;
 }
 
 void
@@ -154,14 +152,18 @@ service_reply_single(struct interface *iface, struct service *s, const char *mat
 {
 	const char *host = service_name(s->service);
 	char *service = strstr(host, "._");
+	time_t t = service_timeout(s);
 
-	if (!force && (!s->active || !service || !service_timeout(s)))
+
+	if (!force && (!s->active || !service || !t))
 		return;
 
 	service++;
 
 	if (match && strcmp(match, s->service))
 		return;
+
+	s->t = t;
 
 	dns_init_answer();
 	service_add_ptr(service_name(s->service), ttl);
