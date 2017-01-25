@@ -55,19 +55,19 @@ struct dns_srv_data {
 	uint16_t priority;
 	uint16_t weight;
 	uint16_t port;
-} __attribute__((packed, aligned(2)));
+} __attribute__((packed));
 
 struct dns_answer {
 	uint16_t type;
 	uint16_t class;
 	uint32_t ttl;
 	uint16_t rdlength;
-} __attribute__((packed, aligned(2)));
+} __attribute__((packed));
 
 struct dns_question {
 	uint16_t type;
 	uint16_t class;
-} __attribute__((packed, aligned(2)));
+} __attribute__((packed));
 
 struct interface;
 extern int cfg_proto;
