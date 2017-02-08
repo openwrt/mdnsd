@@ -360,8 +360,10 @@ parse_question(struct interface *iface, char *name, struct dns_question *q)
 
 	switch (q->type) {
 	case TYPE_ANY:
-		if (!strcmp(name, mdns_hostname_local))
+		if (!strcmp(name, mdns_hostname_local)) {
 			service_reply(iface, NULL, announce_ttl);
+			dns_reply_a(iface, announce_ttl);
+		}
 		break;
 
 	case TYPE_PTR:

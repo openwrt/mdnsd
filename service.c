@@ -153,12 +153,6 @@ service_reply(struct interface *iface, const char *match, int ttl)
 
 	vlist_for_each_element(&services, s, node)
 		service_reply_single(iface, s, match, ttl, 0);
-
-	if (match)
-		return;
-
-	if (ttl)
-		dns_reply_a(iface, ttl);
 }
 
 void
