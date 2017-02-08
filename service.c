@@ -15,7 +15,6 @@
 #include <arpa/nameser.h>
 #include <sys/socket.h>
 
-#include <ifaddrs.h>
 #include <resolv.h>
 #include <glob.h>
 #include <stdio.h>
@@ -118,35 +117,6 @@ service_timeout(struct service *s)
 	return t;
 }
 
-void
-service_reply_a(struct interface *iface, int ttl)
-{
-	struct ifaddrs *ifap, *ifa;
-	struct sockaddr_in *sa;
-	struct sockaddr_in6 *sa6;
-
-	getifaddrs(&ifap);
-
-	dns_init_answer();
-	for (ifa = ifap; ifa; ifa = ifa->ifa_next) {
-		if (strcmp(ifa->ifa_name, iface->name))
-			continue;
-		if (ifa->ifa_addr->sa_family == AF_INET) {
-			sa = (struct sockaddr_in *) ifa->ifa_addr;
-			dns_add_answer(TYPE_A, (uint8_t *) &sa->sin_addr, 4, ttl);
-		}
-		if (ifa->ifa_addr->sa_family == AF_INET6) {
-			uint8_t ll_prefix[] = {0xfe, 0x80 };
-			sa6 = (struct sockaddr_in6 *) ifa->ifa_addr;
-			if (!memcmp(&sa6->sin6_addr, &ll_prefix, 2))
-				dns_add_answer(TYPE_AAAA, (uint8_t *) &sa6->sin6_addr, 16, ttl);
-		}
-	}
-	dns_send_answer(iface, mdns_hostname_local);
-
-	freeifaddrs(ifap);
-}
-
 static void
 service_reply_single(struct interface *iface, struct service *s, const char *match, int ttl, int force)
 {
@@ -188,7 +158,7 @@ service_reply(struct interface *iface, const char *match, int ttl)
 		return;
 
 	if (ttl)
-		service_reply_a(iface, ttl);
+		dns_reply_a(iface, ttl);
 }
 
 void
