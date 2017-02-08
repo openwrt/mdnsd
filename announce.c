@@ -62,6 +62,7 @@ announce_timer(struct uloop_timeout *timeout)
 				return;
 			}
 			iface->announce_state++;
+			/* Fall through */
 
 		case STATE_ANNOUNCE:
 			service_announce(iface, announce_ttl);
