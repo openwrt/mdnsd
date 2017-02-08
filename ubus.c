@@ -205,10 +205,10 @@ mdns_query(struct ubus_context *ctx, struct ubus_object *obj,
 
 	if (!strcmp(method, "query")) {
 		if (iface_v4)
-			dns_send_question(iface_v4, question, type, 0);
+			dns_send_question(iface_v4, question, type, 1);
 
 		if (iface_v6)
-			dns_send_question(iface_v6, question, type, 0);
+			dns_send_question(iface_v6, question, type, 1);
 
 		return UBUS_STATUS_OK;
 	} else if (!strcmp(method, "fetch")) {

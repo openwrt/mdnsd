@@ -89,7 +89,7 @@ cache_gc_timer(struct uloop_timeout *timeout)
 			continue;
 		}
 		s->refresh += 50;
-		dns_send_question(s->iface, s->entry, TYPE_PTR, 1);
+		dns_send_question(s->iface, s->entry, TYPE_PTR, 0);
 	}
 
 	uloop_timeout_set(timeout, 10000);
@@ -128,7 +128,7 @@ cache_scan(void)
 
 	vlist_for_each_element(&interfaces, iface, node)
 		avl_for_each_element(&services, s, avl)
-			dns_send_question(iface, s->entry, TYPE_PTR, 1);
+			dns_send_question(iface, s->entry, TYPE_PTR, 0);
 }
 
 static struct cache_service*
@@ -167,7 +167,7 @@ cache_service(struct interface *iface, char *entry, int hlen, int ttl)
 	avl_insert(&services, &s->avl);
 
 	if (!hlen)
-		dns_send_question(iface, entry, TYPE_PTR, !iface->multicast);
+		dns_send_question(iface, entry, TYPE_PTR, iface->multicast);
 
 	return s;
 }

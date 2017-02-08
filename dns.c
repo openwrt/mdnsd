@@ -67,7 +67,7 @@ dns_type_string(uint16_t type)
 }
 
 void
-dns_send_question(struct interface *iface, const char *question, int type, int unicast)
+dns_send_question(struct interface *iface, const char *question, int type, int multicast)
 {
 	static struct dns_header h;
 	static struct dns_question q;
@@ -87,7 +87,7 @@ dns_send_question(struct interface *iface, const char *question, int type, int u
 	int len;
 
 	h.questions = cpu_to_be16(1);
-	q.class = cpu_to_be16(((unicast) ? (CLASS_UNICAST) : (0))  | 1);
+	q.class = cpu_to_be16((multicast ? 0 : CLASS_UNICAST) | 1);
 	q.type = cpu_to_be16(type);
 
 	len = dn_comp(question, (void *) dns_buffer, sizeof(dns_buffer), NULL, NULL);
