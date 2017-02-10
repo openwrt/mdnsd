@@ -179,7 +179,7 @@ service_announce_services(struct interface *iface, const char *service, int ttl)
 			else
 				dns_send_answer(iface, sdudp);
 		}
-		service_reply(iface, s->service, ttl);
+		service_reply_single(iface, s, ttl, 0);
 	}
 }
 
