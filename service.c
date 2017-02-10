@@ -118,7 +118,7 @@ service_timeout(struct service *s)
 }
 
 static void
-service_reply_single(struct interface *iface, struct service *s, const char *match, int ttl, int force)
+service_reply_single(struct interface *iface, struct service *s, int ttl, int force)
 {
 	const char *host = service_name(s->service);
 	char *service = strstr(host, "._");
@@ -129,9 +129,6 @@ service_reply_single(struct interface *iface, struct service *s, const char *mat
 		return;
 
 	service++;
-
-	if (match && strcmp(match, s->service))
-		return;
 
 	s->t = t;
 
@@ -151,8 +148,10 @@ service_reply(struct interface *iface, const char *match, int ttl)
 {
 	struct service *s;
 
-	vlist_for_each_element(&services, s, node)
-		service_reply_single(iface, s, match, ttl, 0);
+	vlist_for_each_element(&services, s, node) {
+		if (!match || !strcmp(s->service, match))
+			service_reply_single(iface, s, ttl, 0);
+	}
 }
 
 void
@@ -203,7 +202,7 @@ service_update(struct vlist_tree *tree, struct vlist_node *node_new,
 		if (service_init_announce)
 			vlist_for_each_element(&interfaces, iface, node) {
 				s->t = 0;
-				service_reply_single(iface, s, NULL, announce_ttl, 1);
+				service_reply_single(iface, s, announce_ttl, 1);
 			}
 		return;
 	}
@@ -211,7 +210,7 @@ service_update(struct vlist_tree *tree, struct vlist_node *node_new,
 	s = container_of(node_old, struct service, node);
 	if (!node_new && service_init_announce)
 		vlist_for_each_element(&interfaces, iface, node)
-			service_reply_single(iface, s, NULL, 0, 1);
+			service_reply_single(iface, s, 0, 1);
 	free(s);
 }
 
