@@ -620,8 +620,8 @@ void interface_shutdown(void)
 
 	vlist_for_each_element(&interfaces, iface, node)
 		if (iface->fd.fd > 0 && iface->multicast) {
-			service_announce(iface, 0);
 			dns_reply_a(iface, 0);
+			service_announce_services(iface, 0);
 		}
 	vlist_for_each_element(&interfaces, iface, node)
 		interface_close(iface);

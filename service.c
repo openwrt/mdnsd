@@ -169,12 +169,6 @@ service_announce_services(struct interface *iface, int ttl)
 	}
 }
 
-void
-service_announce(struct interface *iface, int ttl)
-{
-	service_announce_services(iface, ttl);
-}
-
 static void
 service_update(struct vlist_tree *tree, struct vlist_node *node_new,
 	       struct vlist_node *node_old)
