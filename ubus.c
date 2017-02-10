@@ -30,7 +30,7 @@ static struct ubus_auto_conn conn;
 static struct blob_buf b;
 
 static int
-mdns_reload(struct ubus_context *ctx, struct ubus_object *obj,
+umdns_reload(struct ubus_context *ctx, struct ubus_object *obj,
 		struct ubus_request_data *req, const char *method,
 		struct blob_attr *msg)
 {
@@ -39,7 +39,7 @@ mdns_reload(struct ubus_context *ctx, struct ubus_object *obj,
 }
 
 static int
-mdns_scan(struct ubus_context *ctx, struct ubus_object *obj,
+umdns_scan(struct ubus_context *ctx, struct ubus_object *obj,
 		struct ubus_request_data *req, const char *method,
 		struct blob_attr *msg)
 {
@@ -48,7 +48,7 @@ mdns_scan(struct ubus_context *ctx, struct ubus_object *obj,
 }
 
 static int
-mdns_browse(struct ubus_context *ctx, struct ubus_object *obj,
+umdns_browse(struct ubus_context *ctx, struct ubus_object *obj,
 		struct ubus_request_data *req, const char *method,
 		struct blob_attr *msg)
 {
@@ -92,7 +92,7 @@ mdns_browse(struct ubus_context *ctx, struct ubus_object *obj,
 }
 
 static int
-mdns_hosts(struct ubus_context *ctx, struct ubus_object *obj,
+umdns_hosts(struct ubus_context *ctx, struct ubus_object *obj,
 		struct ubus_request_data *req, const char *method,
 		struct blob_attr *msg)
 {
@@ -132,7 +132,7 @@ static const struct blobmsg_policy config_policy[] = {
 };
 
 static int
-mdns_set_config(struct ubus_context *ctx, struct ubus_object *obj,
+umdns_set_config(struct ubus_context *ctx, struct ubus_object *obj,
 		    struct ubus_request_data *req, const char *method,
 		    struct blob_attr *msg)
 {
@@ -175,7 +175,7 @@ static const struct blobmsg_policy query_policy[QUERY_MAX] = {
 };
 
 static int
-mdns_query(struct ubus_context *ctx, struct ubus_object *obj,
+umdns_query(struct ubus_context *ctx, struct ubus_object *obj,
 		    struct ubus_request_data *req, const char *method,
 		    struct blob_attr *msg)
 {
@@ -224,24 +224,24 @@ mdns_query(struct ubus_context *ctx, struct ubus_object *obj,
 }
 
 
-static const struct ubus_method mdns_methods[] = {
-	UBUS_METHOD("set_config", mdns_set_config, config_policy),
-	UBUS_METHOD("query", mdns_query, query_policy),
-	UBUS_METHOD("fetch", mdns_query, query_policy),
-	UBUS_METHOD_NOARG("scan", mdns_scan),
-	UBUS_METHOD_NOARG("browse", mdns_browse),
-	UBUS_METHOD_NOARG("hosts", mdns_hosts),
-	UBUS_METHOD_NOARG("reload", mdns_reload),
+static const struct ubus_method umdns_methods[] = {
+	UBUS_METHOD("set_config", umdns_set_config, config_policy),
+	UBUS_METHOD("query", umdns_query, query_policy),
+	UBUS_METHOD("fetch", umdns_query, query_policy),
+	UBUS_METHOD_NOARG("scan", umdns_scan),
+	UBUS_METHOD_NOARG("browse", umdns_browse),
+	UBUS_METHOD_NOARG("hosts", umdns_hosts),
+	UBUS_METHOD_NOARG("reload", umdns_reload),
 };
 
-static struct ubus_object_type mdns_object_type =
-	UBUS_OBJECT_TYPE("mdns", mdns_methods);
+static struct ubus_object_type umdns_object_type =
+	UBUS_OBJECT_TYPE("umdns", umdns_methods);
 
-static struct ubus_object mdns_object = {
-	.name = "mdns",
-	.type = &mdns_object_type,
-	.methods = mdns_methods,
-	.n_methods = ARRAY_SIZE(mdns_methods),
+static struct ubus_object umdns_object = {
+	.name = "umdns",
+	.type = &umdns_object_type,
+	.methods = umdns_methods,
+	.n_methods = ARRAY_SIZE(umdns_methods),
 };
 
 static void
@@ -249,7 +249,7 @@ ubus_connect_handler(struct ubus_context *ctx)
 {
 	int ret;
 
-	ret = ubus_add_object(ctx, &mdns_object);
+	ret = ubus_add_object(ctx, &umdns_object);
 	if (ret)
 		fprintf(stderr, "Failed to add object: %s\n", ubus_strerror(ret));
 }

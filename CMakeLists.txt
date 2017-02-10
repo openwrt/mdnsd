@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 2.6)
 
-PROJECT(mdns C)
+PROJECT(umdns C)
 ADD_DEFINITIONS(-Os -ggdb -Wall -Werror --std=gnu99 -Wmissing-declarations)
 
 SET(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "")
@@ -13,10 +13,10 @@ IF(DEBUG)
   ADD_DEFINITIONS(-DDEBUG -g3)
 ENDIF()
 
-ADD_EXECUTABLE(mdns ${SOURCES})
+ADD_EXECUTABLE(umdns ${SOURCES})
 
-TARGET_LINK_LIBRARIES(mdns ${LIBS})
+TARGET_LINK_LIBRARIES(umdns ${LIBS})
 
-INSTALL(TARGETS mdns
+INSTALL(TARGETS umdns
 	RUNTIME DESTINATION sbin
 )
