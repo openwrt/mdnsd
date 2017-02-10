@@ -65,8 +65,8 @@ service_update(struct vlist_tree *tree, struct vlist_node *node_new,
 
 static struct blob_buf b;
 static VLIST_TREE(services, avl_strcmp, service_update, false, false);
-static char *sdudp =  "_services._dns-sd._udp.local";
-static char *sdtcp =  "_services._dns-sd._tcp.local";
+char *sdudp =  "_services._dns-sd._udp.local";
+char *sdtcp =  "_services._dns-sd._tcp.local";
 static int service_init_announce;
 
 static const char *
@@ -155,15 +155,9 @@ service_reply(struct interface *iface, const char *match, int ttl)
 }
 
 void
-service_announce_services(struct interface *iface, const char *service, int ttl)
+service_announce_services(struct interface *iface, int tcp, int ttl)
 {
 	struct service *s;
-	int tcp = 1;
-
-	if (!strcmp(service, sdudp))
-		tcp = 0;
-	else if (strcmp(service, sdtcp))
-		return;
 
 	vlist_for_each_element(&services, s, node) {
 		if (!strstr(s->service, "._tcp") && tcp)
@@ -186,8 +180,8 @@ service_announce_services(struct interface *iface, const char *service, int ttl)
 void
 service_announce(struct interface *iface, int ttl)
 {
-	service_announce_services(iface, sdudp, ttl);
-	service_announce_services(iface, sdtcp, ttl);
+	service_announce_services(iface, 0, ttl);
+	service_announce_services(iface, 1, ttl);
 }
 
 static void
