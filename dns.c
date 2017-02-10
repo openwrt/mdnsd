@@ -368,9 +368,7 @@ parse_question(struct interface *iface, char *name, struct dns_question *q)
 
 	case TYPE_PTR:
 		if (!strcmp(name, sdudp))
-			service_announce_services(iface, 0, announce_ttl);
-		else if (!strcmp(name, sdtcp))
-			service_announce_services(iface, 1, announce_ttl);
+			service_announce_services(iface, announce_ttl);
 		service_reply(iface, name, announce_ttl);
 		break;
 
