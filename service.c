@@ -229,7 +229,7 @@ service_load_blob(struct blob_attr *b)
 	if (!_tb[SERVICE_PORT] || !_tb[SERVICE_SERVICE])
 		return;
 
-	if (_tb[SERVICE_SERVICE])
+	if (_tb[SERVICE_TXT])
 		blobmsg_for_each_attr(txt, _tb[SERVICE_TXT], rem2)
 			txt_len += 1 + strlen(blobmsg_get_string(txt));
 
@@ -248,7 +248,7 @@ service_load_blob(struct blob_attr *b)
 	s->txt_len = txt_len;
 	s->txt = d_txt;
 
-	if (_tb[SERVICE_SERVICE])
+	if (_tb[SERVICE_TXT])
 		blobmsg_for_each_attr(txt, _tb[SERVICE_TXT], rem2) {
 			int len = strlen(blobmsg_get_string(txt));
 			if (!len)
