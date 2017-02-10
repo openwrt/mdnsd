@@ -49,7 +49,7 @@ struct cache_record {
 extern struct avl_tree services;
 
 int cache_init(void);
-void cache_scan(void);
+void cache_update(void);
 void cache_cleanup(struct interface *iface);
 void cache_answer(struct interface *iface, uint8_t *base, int blen,
 		  char *name, struct dns_answer *a, uint8_t *rdata, int flush);

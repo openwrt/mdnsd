@@ -39,11 +39,11 @@ umdns_reload(struct ubus_context *ctx, struct ubus_object *obj,
 }
 
 static int
-umdns_scan(struct ubus_context *ctx, struct ubus_object *obj,
+umdns_update(struct ubus_context *ctx, struct ubus_object *obj,
 		struct ubus_request_data *req, const char *method,
 		struct blob_attr *msg)
 {
-	cache_scan();
+	cache_update();
 	return 0;
 }
 
@@ -228,7 +228,7 @@ static const struct ubus_method umdns_methods[] = {
 	UBUS_METHOD("set_config", umdns_set_config, config_policy),
 	UBUS_METHOD("query", umdns_query, query_policy),
 	UBUS_METHOD("fetch", umdns_query, query_policy),
-	UBUS_METHOD_NOARG("scan", umdns_scan),
+	UBUS_METHOD_NOARG("update", umdns_update),
 	UBUS_METHOD_NOARG("browse", umdns_browse),
 	UBUS_METHOD_NOARG("hosts", umdns_hosts),
 	UBUS_METHOD_NOARG("reload", umdns_reload),

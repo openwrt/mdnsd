@@ -121,7 +121,7 @@ void cache_cleanup(struct interface *iface)
 }
 
 void
-cache_scan(void)
+cache_update(void)
 {
 	struct interface *iface;
 	struct cache_service *s;
