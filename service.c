@@ -271,7 +271,7 @@ service_init_cb(struct ubus_request *req, int type, struct blob_attr *msg)
 	get_hostname();
 
 	vlist_update(&services);
-	service_load("/tmp/run/mdns/*");
+	service_load("/etc/umdns/*");
 
 	blob_for_each_attr(cur, msg, rem) {
 		struct blob_attr *cur2;
