@@ -389,6 +389,7 @@ static void
 reconnect_socket4(struct uloop_timeout *timeout)
 {
 	struct interface *iface = container_of(timeout, struct interface, reconnect);
+	int ttl = 255;
 	int yes = 1;
 
 	iface->fd.fd = usock(USOCK_UDP | USOCK_SERVER | USOCK_NONBLOCK | USOCK_IPV4ONLY,
@@ -403,6 +404,9 @@ reconnect_socket4(struct uloop_timeout *timeout)
 
 	if (setsockopt(iface->fd.fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) < 0)
 		fprintf(stderr, "ioctl failed: SO_REUSEADDR\n");
+
+	if (setsockopt(iface->fd.fd, IPPROTO_IP, IP_TTL, &ttl, sizeof(ttl)) < 0)
+		fprintf(stderr, "ioctl failed: IP_TTL\n");
 
 	if (setsockopt(iface->fd.fd, IPPROTO_IP, IP_RECVTTL, &yes, sizeof(yes)) < 0)
 		fprintf(stderr, "ioctl failed: IP_RECVTTL\n");
