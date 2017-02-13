@@ -367,9 +367,19 @@ parse_question(struct interface *iface, char *name, struct dns_question *q)
 		break;
 
 	case TYPE_PTR:
-		if (!strcmp(name, sdudp))
+		if (!strcmp(name, sdudp)) {
 			service_announce_services(iface, announce_ttl);
-		service_reply(iface, name, announce_ttl);
+		} else {
+			/* First dot separates instance name from the rest */
+			char *dot = strchr(name, '.');
+			/* Length of queried instance */
+			size_t len = dot ? dot - name : 0;
+
+			/* Make sure it's query for the instance name we use */
+			if (len && len == strlen(mdns_hostname) &&
+			    !strncmp(name, mdns_hostname, len))
+				service_reply(iface, dot + 1, announce_ttl);
+		}
 		break;
 
 	case TYPE_AAAA:
