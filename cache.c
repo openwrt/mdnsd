@@ -143,6 +143,7 @@ cache_service(struct interface *iface, char *entry, int hlen, int ttl)
 		if (!strcmp(s->entry, entry)) {
 			s->refresh = 50;
 			s->time = monotonic_time();
+			s->ttl = ttl;
 			return s;
 		}
 
