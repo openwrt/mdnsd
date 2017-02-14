@@ -349,26 +349,32 @@ parse_answer(struct interface *iface, uint8_t *buffer, int len, uint8_t **b, int
 }
 
 static void
-parse_question(struct interface *iface, char *name, struct dns_question *q)
+parse_question(struct interface *iface, struct sockaddr *from, char *name, struct dns_question *q)
 {
+	struct sockaddr *to;
 	char *host;
 
-	if ((q->class & CLASS_UNICAST) && iface->multicast)
+	/* TODO: Multicast if more than one quarter of TTL has passed */
+	if ((q->class & CLASS_UNICAST) && iface->multicast) {
 		iface = iface->peer;
+		to = from;
+	} else {
+		to = NULL;
+	}
 
 	DBG(1, "Q -> %s %s\n", dns_type_string(q->type), name);
 
 	switch (q->type) {
 	case TYPE_ANY:
 		if (!strcmp(name, mdns_hostname_local)) {
-			service_reply(iface, NULL, announce_ttl);
-			dns_reply_a(iface, NULL, announce_ttl);
+			dns_reply_a(iface, to, announce_ttl);
+			service_reply(iface, to, NULL, announce_ttl);
 		}
 		break;
 
 	case TYPE_PTR:
 		if (!strcmp(name, sdudp)) {
-			service_announce_services(iface, announce_ttl);
+			service_announce_services(iface, to, announce_ttl);
 		} else {
 			/* First dot separates instance name from the rest */
 			char *dot = strchr(name, '.');
@@ -378,7 +384,7 @@ parse_question(struct interface *iface, char *name, struct dns_question *q)
 			/* Make sure it's query for the instance name we use */
 			if (len && len == strlen(mdns_hostname) &&
 			    !strncmp(name, mdns_hostname, len))
-				service_reply(iface, dot + 1, announce_ttl);
+				service_reply(iface, to, dot + 1, announce_ttl);
 		}
 		break;
 
@@ -388,7 +394,7 @@ parse_question(struct interface *iface, char *name, struct dns_question *q)
 		if (host)
 			*host = '\0';
 		if (!strcmp(mdns_hostname, name))
-			dns_reply_a(iface, NULL, announce_ttl);
+			dns_reply_a(iface, to, announce_ttl);
 		break;
 	};
 }
@@ -426,7 +432,7 @@ dns_handle_packet(struct interface *iface, struct sockaddr *s, uint16_t port, ui
 		}
 
 		if (!(h->flags & FLAG_RESPONSE))
-			parse_question(iface, name, q);
+			parse_question(iface, s, name, q);
 	}
 
 	if (!(h->flags & FLAG_RESPONSE))
