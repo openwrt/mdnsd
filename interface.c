@@ -69,7 +69,7 @@ interface_send_packet4(struct interface *iface, struct sockaddr_in *to, struct i
 	pkti = (struct in_pktinfo*) CMSG_DATA(cmsg);
 	pkti->ipi_ifindex = iface->ifindex;
 
-	if (iface->multicast || !to) {
+	if (iface->multicast) {
 		a.sin_addr.s_addr = inet_addr(MCAST_ADDR);
 		if (to)
 			fprintf(stderr, "Ignoring IPv4 address for multicast interface\n");
@@ -109,7 +109,7 @@ interface_send_packet6(struct interface *iface, struct sockaddr_in6 *to, struct 
 	pkti = (struct in6_pktinfo*) CMSG_DATA(cmsg);
 	pkti->ipi6_ifindex = iface->ifindex;
 
-	if (iface->multicast || !to) {
+	if (iface->multicast) {
 		inet_pton(AF_INET6, MCAST_ADDR6, &a.sin6_addr);
 		if (to)
 			fprintf(stderr, "Ignoring IPv6 address for multicast interface\n");
@@ -123,6 +123,11 @@ interface_send_packet6(struct interface *iface, struct sockaddr_in6 *to, struct 
 int
 interface_send_packet(struct interface *iface, struct sockaddr *to, struct iovec *iov, int iov_len)
 {
+	if (!iface->multicast && !to) {
+		fprintf(stderr, "No IP address specified for unicast interface\n");
+		return -1;
+	}
+
 	if (debug > 1) {
 		fprintf(stderr, "TX ipv%d: %s\n", iface->v6 * 2 + 4, iface->name);
 		fprintf(stderr, "  multicast: %d\n", iface->multicast);
