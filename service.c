@@ -65,7 +65,7 @@ service_update(struct vlist_tree *tree, struct vlist_node *node_new,
 
 static struct blob_buf b;
 static VLIST_TREE(services, avl_strcmp, service_update, false, false);
-char *sdudp =  "_services._dns-sd._udp.local";
+const char *sdudp =  "_services._dns-sd._udp.local";
 static int service_init_announce;
 
 static const char *

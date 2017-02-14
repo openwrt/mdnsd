@@ -14,7 +14,7 @@
 #ifndef _SERVICE_H__
 #define _SERVICE_H__
 
-extern char *sdudp;
+extern const char *sdudp;
 extern void service_init(int announce);
 extern void service_cleanup(void);
 extern void service_reply(struct interface *iface, const char *match, int ttl);
