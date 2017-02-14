@@ -89,7 +89,12 @@ cache_gc_timer(struct uloop_timeout *timeout)
 			continue;
 		}
 		s->refresh += 50;
-		dns_send_question(s->iface, s->entry, TYPE_PTR, 0);
+		if (cache_service_is_host(s)) {
+			dns_send_question(s->iface, s->entry, TYPE_A, 0);
+			dns_send_question(s->iface, s->entry, TYPE_AAAA, 0);
+		} else {
+			dns_send_question(s->iface, s->entry, TYPE_PTR, 0);
+		}
 	}
 
 	uloop_timeout_set(timeout, 10000);
