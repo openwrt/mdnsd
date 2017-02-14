@@ -41,7 +41,7 @@
 #include "service.h"
 
 static int
-interface_send_packet4(struct interface *iface, struct iovec *iov, int iov_len)
+interface_send_packet4(struct interface *iface, struct sockaddr_in *to, struct iovec *iov, int iov_len)
 {
 	static size_t cmsg_data[( CMSG_SPACE(sizeof(struct in_pktinfo)) / sizeof(size_t)) + 1];
 	static struct sockaddr_in a;
@@ -69,13 +69,19 @@ interface_send_packet4(struct interface *iface, struct iovec *iov, int iov_len)
 	pkti = (struct in_pktinfo*) CMSG_DATA(cmsg);
 	pkti->ipi_ifindex = iface->ifindex;
 
-	a.sin_addr.s_addr = inet_addr(MCAST_ADDR);
+	if (iface->multicast || !to) {
+		a.sin_addr.s_addr = inet_addr(MCAST_ADDR);
+		if (to)
+			fprintf(stderr, "Ignoring IPv4 address for multicast interface\n");
+	} else {
+		a.sin_addr.s_addr = to->sin_addr.s_addr;
+	}
 
 	return sendmsg(fd, &m, 0);
 }
 
 static int
-interface_send_packet6(struct interface *iface, struct iovec *iov, int iov_len)
+interface_send_packet6(struct interface *iface, struct sockaddr_in6 *to, struct iovec *iov, int iov_len)
 {
 	static size_t cmsg_data[( CMSG_SPACE(sizeof(struct in6_pktinfo)) / sizeof(size_t)) + 1];
 	static struct sockaddr_in6 a;
@@ -103,13 +109,19 @@ interface_send_packet6(struct interface *iface, struct iovec *iov, int iov_len)
 	pkti = (struct in6_pktinfo*) CMSG_DATA(cmsg);
 	pkti->ipi6_ifindex = iface->ifindex;
 
-	inet_pton(AF_INET6, MCAST_ADDR6, &a.sin6_addr);
+	if (iface->multicast || !to) {
+		inet_pton(AF_INET6, MCAST_ADDR6, &a.sin6_addr);
+		if (to)
+			fprintf(stderr, "Ignoring IPv6 address for multicast interface\n");
+	} else {
+		a.sin6_addr = to->sin6_addr;
+	}
 
 	return sendmsg(fd, &m, 0);
 }
 
 int
-interface_send_packet(struct interface *iface, struct iovec *iov, int iov_len)
+interface_send_packet(struct interface *iface, struct sockaddr *to, struct iovec *iov, int iov_len)
 {
 	if (debug > 1) {
 		fprintf(stderr, "TX ipv%d: %s\n", iface->v6 * 2 + 4, iface->name);
@@ -117,9 +129,9 @@ interface_send_packet(struct interface *iface, struct iovec *iov, int iov_len)
 	}
 
 	if (iface->v6)
-		return interface_send_packet6(iface, iov, iov_len);
+		return interface_send_packet6(iface, (struct sockaddr_in6 *)to, iov, iov_len);
 
-	return interface_send_packet4(iface, iov, iov_len);
+	return interface_send_packet4(iface, (struct sockaddr_in *)to, iov, iov_len);
 }
 
 static void interface_close(struct interface *iface)
@@ -624,7 +636,7 @@ void interface_shutdown(void)
 
 	vlist_for_each_element(&interfaces, iface, node)
 		if (iface->fd.fd > 0 && iface->multicast) {
-			dns_reply_a(iface, 0);
+			dns_reply_a(iface, NULL, 0);
 			service_announce_services(iface, 0);
 		}
 	vlist_for_each_element(&interfaces, iface, node)

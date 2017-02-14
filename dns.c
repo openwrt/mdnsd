@@ -98,7 +98,7 @@ dns_send_question(struct interface *iface, const char *question, int type, int m
 	iov[1].iov_len = len;
 
 	DBG(1, "Q <- %s %s\n", dns_type_string(type), question);
-	if (interface_send_packet(iface, iov, ARRAY_SIZE(iov)) < 0)
+	if (interface_send_packet(iface, NULL, iov, ARRAY_SIZE(iov)) < 0)
 		perror("failed to send question :");
 }
 
@@ -138,7 +138,7 @@ dns_add_answer(int type, const uint8_t *rdata, uint16_t rdlength, int ttl)
 }
 
 void
-dns_send_answer(struct interface *iface, const char *answer)
+dns_send_answer(struct interface *iface, struct sockaddr *to, const char *answer)
 {
 	uint8_t buffer[256];
 	struct blob_attr *attr;
@@ -177,12 +177,12 @@ dns_send_answer(struct interface *iface, const char *answer)
 		DBG(1, "A <- %s %s\n", dns_type_string(be16_to_cpu(a->type)), answer);
 	}
 
-	if (interface_send_packet(iface, iov, n_iov) < 0)
+	if (interface_send_packet(iface, to, iov, n_iov) < 0)
 		fprintf(stderr, "failed to send question\n");
 }
 
 void
-dns_reply_a(struct interface *iface, int ttl)
+dns_reply_a(struct interface *iface, struct sockaddr *to, int ttl)
 {
 	struct ifaddrs *ifap, *ifa;
 	struct sockaddr_in *sa;
@@ -205,7 +205,7 @@ dns_reply_a(struct interface *iface, int ttl)
 				dns_add_answer(TYPE_AAAA, (uint8_t *) &sa6->sin6_addr, 16, ttl);
 		}
 	}
-	dns_send_answer(iface, mdns_hostname_local);
+	dns_send_answer(iface, to, mdns_hostname_local);
 
 	freeifaddrs(ifap);
 }
@@ -362,7 +362,7 @@ parse_question(struct interface *iface, char *name, struct dns_question *q)
 	case TYPE_ANY:
 		if (!strcmp(name, mdns_hostname_local)) {
 			service_reply(iface, NULL, announce_ttl);
-			dns_reply_a(iface, announce_ttl);
+			dns_reply_a(iface, NULL, announce_ttl);
 		}
 		break;
 
@@ -388,7 +388,7 @@ parse_question(struct interface *iface, char *name, struct dns_question *q)
 		if (host)
 			*host = '\0';
 		if (!strcmp(mdns_hostname, name))
-			dns_reply_a(iface, announce_ttl);
+			dns_reply_a(iface, NULL, announce_ttl);
 		break;
 	};
 }

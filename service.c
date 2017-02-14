@@ -133,13 +133,13 @@ service_reply_single(struct interface *iface, struct service *s, int ttl, int fo
 
 	dns_init_answer();
 	service_add_ptr(service_name(s->service), ttl);
-	dns_send_answer(iface, service);
+	dns_send_answer(iface, NULL, service);
 
 	dns_init_answer();
 	service_add_srv(s, ttl);
 	if (s->txt && s->txt_len)
 		dns_add_answer(TYPE_TXT, (uint8_t *) s->txt, s->txt_len, ttl);
-	dns_send_answer(iface, host);
+	dns_send_answer(iface, NULL, host);
 }
 
 void
@@ -163,7 +163,7 @@ service_announce_services(struct interface *iface, int ttl)
 		if (ttl) {
 			dns_init_answer();
 			service_add_ptr(s->service, ttl);
-			dns_send_answer(iface, sdudp);
+			dns_send_answer(iface, NULL, sdudp);
 		}
 		service_reply_single(iface, s, ttl, 0);
 	}
