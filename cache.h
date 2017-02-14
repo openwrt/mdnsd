@@ -54,6 +54,9 @@ void cache_cleanup(struct interface *iface);
 void cache_answer(struct interface *iface, uint8_t *base, int blen,
 		  char *name, struct dns_answer *a, uint8_t *rdata, int flush);
 int cache_host_is_known(char *record);
+static inline bool cache_service_is_host(struct cache_service *s) {
+	return *((char *)s->avl.key) != '_';
+}
 void cache_dump_records(struct blob_buf *buf, const char *name);
 void cache_dump_recursive(struct blob_buf *b, const char *name, uint16_t type, struct interface *iface);
 
