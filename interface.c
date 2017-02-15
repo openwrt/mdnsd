@@ -125,6 +125,7 @@ interface_send_packet(struct interface *iface, struct sockaddr *to, struct iovec
 {
 	if (!iface->multicast && !to) {
 		fprintf(stderr, "No IP address specified for unicast interface\n");
+		errno = EINVAL;
 		return -1;
 	}
 
