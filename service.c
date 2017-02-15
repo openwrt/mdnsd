@@ -255,9 +255,12 @@ service_load(char *path)
 
 	for (i = 0; i < gl.gl_pathc; i++) {
 	        blob_buf_init(&b, 0);
-		if (blobmsg_add_json_from_file(&b, gl.gl_pathv[i]))
+		if (blobmsg_add_json_from_file(&b, gl.gl_pathv[i])) {
 			blob_for_each_attr(cur, b.head, rem)
 				service_load_blob(cur);
+		} else {
+			fprintf(stderr, "Error reading %s JSON\n", gl.gl_pathv[i]);
+		}
 	}
 	globfree(&gl);
 }
