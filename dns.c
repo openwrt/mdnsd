@@ -374,6 +374,7 @@ parse_question(struct interface *iface, struct sockaddr *from, char *name, struc
 
 	case TYPE_PTR:
 		if (!strcmp(name, sdudp)) {
+			dns_reply_a(iface, to, announce_ttl);
 			service_announce_services(iface, to, announce_ttl);
 		} else {
 			/* First dot separates instance name from the rest */
