@@ -97,21 +97,13 @@ umdns_hosts(struct ubus_context *ctx, struct ubus_object *obj,
 		struct blob_attr *msg)
 {
 	struct cache_service *s;
-	char *buffer = (char *) mdns_buf;
 	void *c;
 
 	blob_buf_init(&b, 0);
 	avl_for_each_element(&services, s, avl) {
-		char *local;
 		if (!cache_service_is_host(s))
 			continue;
-		snprintf(buffer, MAX_NAME_LEN, "%s", s->entry);
-		local = strstr(buffer, "._");
-		if (local)
-			*local = '\0';
-		c = blobmsg_open_table(&b, buffer);
-		strncat(buffer, ".local", MAX_NAME_LEN);
-		cache_dump_records(&b, buffer);
+		c = blobmsg_open_table(&b, s->entry);
 		cache_dump_records(&b, s->entry);
 		blobmsg_close_table(&b, c);
 	}
