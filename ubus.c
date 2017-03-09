@@ -71,7 +71,7 @@ umdns_browse(struct ubus_context *ctx, struct ubus_object *obj,
 		if (!c1) {
 			c1 = blobmsg_open_table(&b, buffer);
 		}
-		snprintf(buffer, MAX_NAME_LEN, "%s", (const char *) s->entry);
+		snprintf(buffer, MAX_NAME_LEN, "%s", s->entry);
 		local = strstr(buffer, "._");
 		if (local)
 			*local = '\0';
@@ -105,7 +105,7 @@ umdns_hosts(struct ubus_context *ctx, struct ubus_object *obj,
 		char *local;
 		if (!cache_service_is_host(s))
 			continue;
-		snprintf(buffer, MAX_NAME_LEN, "%s", (const char *) s->entry);
+		snprintf(buffer, MAX_NAME_LEN, "%s", s->entry);
 		local = strstr(buffer, "._");
 		if (local)
 			*local = '\0';
