@@ -153,6 +153,7 @@ static void interface_close(struct interface *iface)
 
 static void interface_free(struct interface *iface)
 {
+	uloop_timeout_cancel(&iface->reconnect);
 	interface_close(iface);
 	free(iface);
 }
