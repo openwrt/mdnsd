@@ -101,8 +101,6 @@ cache_gc_timer(struct uloop_timeout *timeout)
 			continue;
 		}
 		s->refresh += 50;
-		if (cache_service_is_host(s))
-			continue;
 		dns_send_question(s->iface, s->entry, TYPE_PTR, 0);
 	}
 
@@ -276,7 +274,8 @@ cache_answer(struct interface *iface, uint8_t *base, int blen, char *name, struc
 		    nlen + 1 < rdlength && !strcmp(rdata_buffer + rdlength - nlen, name))
 			host_len = rdlength - nlen - 1;
 
-		cache_service(iface, rdata_buffer, host_len, a->ttl);
+		if (name[0] == '_')
+			cache_service(iface, rdata_buffer, host_len, a->ttl);
 
 		dlen = strlen(rdata_buffer) + 1;
 		rdata = (uint8_t*)rdata_buffer;
@@ -317,14 +316,12 @@ cache_answer(struct interface *iface, uint8_t *base, int blen, char *name, struc
 		break;
 
 	case TYPE_A:
-		cache_service(iface, name, strlen(name), a->ttl);
 		if (a->rdlength != 4)
 			return;
 		dlen = 4;
 		break;
 
 	case TYPE_AAAA:
-		cache_service(iface, name, strlen(name), a->ttl);
 		if (a->rdlength != 16)
 			return;
 		dlen = 16;

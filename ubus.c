@@ -59,8 +59,7 @@ umdns_browse(struct ubus_context *ctx, struct ubus_object *obj,
 	blob_buf_init(&b, 0);
 	avl_for_each_element(&services, s, avl) {
 		char *local;
-		if (cache_service_is_host(s))
-			continue;
+
 		snprintf(buffer, MAX_NAME_LEN, "%s", (const char *) s->avl.key);
 		local = strstr(buffer, ".local");
 		if (local)
