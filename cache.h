@@ -44,6 +44,7 @@ struct cache_record {
 	uint16_t rdlength;
 	time_t time;
 	struct interface *iface;
+	int refresh;
 };
 
 extern struct avl_tree services;

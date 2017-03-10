@@ -75,9 +75,21 @@ cache_gc_timer(struct uloop_timeout *timeout)
 	struct cache_record *r, *p;
 	struct cache_service *s, *t;
 
-	avl_for_each_element_safe(&records, r, avl, p)
-		if (cache_is_expired(r->time, r->ttl, 100))
+	avl_for_each_element_safe(&records, r, avl, p) {
+		if (!cache_is_expired(r->time, r->ttl, 100))
+			continue;
+		/* Records other and A(AAA) are handled as services */
+		if (r->type != TYPE_A && r->type != TYPE_AAAA) {
 			cache_record_free(r);
+			continue;
+		}
+		if (r->refresh >= 100) {
+			cache_record_free(r);
+			continue;
+		}
+		r->refresh += 50;
+		dns_send_question(r->iface, r->record, r->type, 0);
+	}
 
 	avl_for_each_element_safe(&services, s, avl, t) {
 		if (!s->host)
@@ -89,12 +101,9 @@ cache_gc_timer(struct uloop_timeout *timeout)
 			continue;
 		}
 		s->refresh += 50;
-		if (cache_service_is_host(s)) {
-			dns_send_question(s->iface, s->entry, TYPE_A, 0);
-			dns_send_question(s->iface, s->entry, TYPE_AAAA, 0);
-		} else {
-			dns_send_question(s->iface, s->entry, TYPE_PTR, 0);
-		}
+		if (cache_service_is_host(s))
+			continue;
+		dns_send_question(s->iface, s->entry, TYPE_PTR, 0);
 	}
 
 	uloop_timeout_set(timeout, 10000);
