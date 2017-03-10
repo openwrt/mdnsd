@@ -96,16 +96,21 @@ umdns_hosts(struct ubus_context *ctx, struct ubus_object *obj,
 		struct ubus_request_data *req, const char *method,
 		struct blob_attr *msg)
 {
-	struct cache_service *s;
+	struct cache_record *prev = NULL;
+	struct cache_record *r;
 	void *c;
 
 	blob_buf_init(&b, 0);
-	avl_for_each_element(&services, s, avl) {
-		if (!cache_service_is_host(s))
+	avl_for_each_element(&records, r, avl) {
+		if (r->type != TYPE_A && r->type != TYPE_AAAA)
 			continue;
-		c = blobmsg_open_table(&b, s->entry);
-		cache_dump_records(&b, s->entry);
-		blobmsg_close_table(&b, c);
+		/* Query each domain just once */
+		if (!prev || strcmp(r->record, prev->record)) {
+			c = blobmsg_open_table(&b, r->record);
+			cache_dump_records(&b, r->record);
+			blobmsg_close_table(&b, c);
+		}
+		prev = r;
 	}
 	ubus_send_reply(ctx, req, b.head);
 

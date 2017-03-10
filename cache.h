@@ -47,6 +47,7 @@ struct cache_record {
 };
 
 extern struct avl_tree services;
+extern struct avl_tree records;
 
 int cache_init(void);
 void cache_update(void);

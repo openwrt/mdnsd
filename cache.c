@@ -42,7 +42,7 @@
 
 static struct uloop_timeout cache_gc;
 struct avl_tree services;
-static AVL_TREE(records, avl_strcmp, true, NULL);
+AVL_TREE(records, avl_strcmp, true, NULL);
 
 static void
 cache_record_free(struct cache_record *r)
