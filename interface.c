@@ -242,7 +242,7 @@ read_socket4(struct uloop_fd *u, unsigned int events)
 		fprintf(stderr, "RX ipv4: %s\n", iface->name);
 		fprintf(stderr, "  multicast: %d\n", iface->multicast);
 		inet_ntop(AF_INET, &from.sin_addr, buf, 256);
-		fprintf(stderr, "  src %s:%d\n", buf, from.sin_port);
+		fprintf(stderr, "  src %s:%d\n", buf, ntohs(from.sin_port));
 		inet_ntop(AF_INET, &inp->ipi_spec_dst, buf, 256);
 		fprintf(stderr, "  dst %s\n", buf);
 		inet_ntop(AF_INET, &inp->ipi_addr, buf, 256);
@@ -252,7 +252,7 @@ read_socket4(struct uloop_fd *u, unsigned int events)
 	if (inp->ipi_ifindex != iface->ifindex)
 		fprintf(stderr, "invalid iface index %d != %d\n", ifindex, iface->ifindex);
 	else if (!interface_valid_src((void *) &iface->v4_addr, (void *) &iface->v4_netmask, (void *) &from.sin_addr, 4))
-		dns_handle_packet(iface, (struct sockaddr *) &from, from.sin_port, buffer, len);
+		dns_handle_packet(iface, (struct sockaddr *) &from, ntohs(from.sin_port), buffer, len);
 }
 
 static void
@@ -319,7 +319,7 @@ read_socket6(struct uloop_fd *u, unsigned int events)
 		fprintf(stderr, "RX ipv6: %s\n", iface->name);
 		fprintf(stderr, "  multicast: %d\n", iface->multicast);
 		inet_ntop(AF_INET6, &from.sin6_addr, buf, 256);
-		fprintf(stderr, "  src %s:%d\n", buf, from.sin6_port);
+		fprintf(stderr, "  src %s:%d\n", buf, ntohs(from.sin6_port));
 		inet_ntop(AF_INET6, &inp->ipi6_addr, buf, 256);
 		fprintf(stderr, "  dst %s\n", buf);
 	}
@@ -327,7 +327,7 @@ read_socket6(struct uloop_fd *u, unsigned int events)
 	if (inp->ipi6_ifindex != iface->ifindex)
 		fprintf(stderr, "invalid iface index %d != %d\n", ifindex, iface->ifindex);
 	else if (!interface_valid_src((void *) &iface->v6_addr, (void *) &iface->v6_netmask, (void *) &from.sin6_addr, 16))
-		dns_handle_packet(iface, (struct sockaddr *) &from, from.sin6_port, buffer, len);
+		dns_handle_packet(iface, (struct sockaddr *) &from, ntohs(from.sin6_port), buffer, len);
 }
 
 static int
