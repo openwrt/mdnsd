@@ -413,7 +413,7 @@ dns_handle_packet(struct interface *iface, struct sockaddr *s, uint16_t port, ui
 		return;
 	}
 
-	if (h->questions && !iface->multicast && port != 5353)
+	if (h->questions && !iface->multicast && port != MCAST_PORT)
 		/* silently drop unicast questions that dont originate from port 5353 */
 		return;
 
