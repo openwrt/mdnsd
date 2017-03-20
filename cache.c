@@ -242,8 +242,9 @@ cache_host_is_known(char *record)
 	return 0;
 }
 
-void
-cache_answer(struct interface *iface, uint8_t *base, int blen, char *name, struct dns_answer *a, uint8_t *rdata, int flush)
+void cache_answer(struct interface *iface, struct sockaddr *from, uint8_t *base,
+		  int blen, char *name, struct dns_answer *a, uint8_t *rdata,
+		  int flush)
 {
 	struct dns_srv_data *dsd = (struct dns_srv_data *) rdata;
 	struct cache_record *r;
@@ -362,6 +363,10 @@ cache_answer(struct interface *iface, uint8_t *base, int blen, char *name, struc
 	r->rdlength = dlen;
 	r->time = now;
 	r->iface = iface;
+	if (iface->v6)
+		memcpy(&r->from, from, sizeof(struct sockaddr_in6));
+	else
+		memcpy(&r->from, from, sizeof(struct sockaddr_in));
 	r->refresh = 50;
 
 	if (tlen)

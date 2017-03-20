@@ -312,8 +312,9 @@ dns_consume_name(const uint8_t *base, int blen, uint8_t **data, int *len)
 	return name_buffer;
 }
 
-static int
-parse_answer(struct interface *iface, uint8_t *buffer, int len, uint8_t **b, int *rlen, int cache)
+static int parse_answer(struct interface *iface, struct sockaddr *from,
+			uint8_t *buffer, int len, uint8_t **b, int *rlen,
+			int cache)
 {
 	char *name = dns_consume_name(buffer, len, b, rlen);
 	struct dns_answer *a;
@@ -343,7 +344,7 @@ parse_answer(struct interface *iface, uint8_t *buffer, int len, uint8_t **b, int
 	*b += a->rdlength;
 
 	if (cache)
-		cache_answer(iface, buffer, len, name, a, rdata, a->class & CLASS_FLUSH);
+		cache_answer(iface, from, buffer, len, name, a, rdata, a->class & CLASS_FLUSH);
 
 	return 0;
 }
@@ -400,7 +401,7 @@ parse_question(struct interface *iface, struct sockaddr *from, char *name, struc
 }
 
 void
-dns_handle_packet(struct interface *iface, struct sockaddr *s, uint16_t port, uint8_t *buffer, int len)
+dns_handle_packet(struct interface *iface, struct sockaddr *from, uint16_t port, uint8_t *buffer, int len)
 {
 	struct dns_header *h;
 	uint8_t *b = buffer;
@@ -432,22 +433,22 @@ dns_handle_packet(struct interface *iface, struct sockaddr *s, uint16_t port, ui
 		}
 
 		if (!(h->flags & FLAG_RESPONSE))
-			parse_question(iface, s, name, q);
+			parse_question(iface, from, name, q);
 	}
 
 	if (!(h->flags & FLAG_RESPONSE))
 		return;
 
 	while (h->answers-- > 0)
-		if (parse_answer(iface, buffer, len, &b, &rlen, 1))
+		if (parse_answer(iface, from, buffer, len, &b, &rlen, 1))
 			return;
 
 	while (h->authority-- > 0)
-		if (parse_answer(iface, buffer, len, &b, &rlen, 1))
+		if (parse_answer(iface, from, buffer, len, &b, &rlen, 1))
 			return;
 
 	while (h->additional-- > 0)
-		if (parse_answer(iface, buffer, len, &b, &rlen, 1))
+		if (parse_answer(iface, from, buffer, len, &b, &rlen, 1))
 			return;
 
 }
