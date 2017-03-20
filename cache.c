@@ -78,7 +78,7 @@ cache_gc_timer(struct uloop_timeout *timeout)
 	avl_for_each_element_safe(&records, r, avl, p) {
 		if (!cache_is_expired(r->time, r->ttl, r->refresh))
 			continue;
-		/* Records other and A(AAA) are handled as services */
+		/* Records other than A(AAA) are handled as services */
 		if (r->type != TYPE_A && r->type != TYPE_AAAA) {
 			cache_record_free(r);
 			continue;
