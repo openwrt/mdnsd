@@ -351,15 +351,14 @@ parse_answer(struct interface *iface, uint8_t *buffer, int len, uint8_t **b, int
 static void
 parse_question(struct interface *iface, struct sockaddr *from, char *name, struct dns_question *q)
 {
-	struct sockaddr *to;
+	struct sockaddr *to = NULL;
 	char *host;
 
 	/* TODO: Multicast if more than one quarter of TTL has passed */
-	if ((q->class & CLASS_UNICAST) && iface->multicast) {
-		iface = iface->peer;
+	if (q->class & CLASS_UNICAST) {
 		to = from;
-	} else {
-		to = NULL;
+		if (iface->multicast)
+			iface = iface->peer;
 	}
 
 	DBG(1, "Q -> %s %s\n", dns_type_string(q->type), name);
