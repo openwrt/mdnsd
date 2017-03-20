@@ -68,7 +68,8 @@ dns_type_string(uint16_t type)
 }
 
 void
-dns_send_question(struct interface *iface, const char *question, int type, int multicast)
+dns_send_question(struct interface *iface, struct sockaddr *to,
+		  const char *question, int type, int multicast)
 {
 	static struct dns_header h;
 	static struct dns_question q;
@@ -98,7 +99,7 @@ dns_send_question(struct interface *iface, const char *question, int type, int m
 	iov[1].iov_len = len;
 
 	DBG(1, "Q <- %s %s\n", dns_type_string(type), question);
-	if (interface_send_packet(iface, NULL, iov, ARRAY_SIZE(iov)) < 0)
+	if (interface_send_packet(iface, to, iov, ARRAY_SIZE(iov)) < 0)
 		perror("failed to send question");
 }
 
