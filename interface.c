@@ -34,6 +34,7 @@
 #include <libubox/uloop.h>
 #include <libubox/avl-cmp.h>
 #include <libubox/utils.h>
+#include "cache.h"
 #include "interface.h"
 #include "util.h"
 #include "dns.h"
@@ -519,6 +520,7 @@ iface_update_cb(struct vlist_tree *tree, struct vlist_node *node_new,
 
 	if (node_old) {
 		iface = container_of(node_old, struct interface, node);
+		cache_cleanup(iface);
 		interface_free(iface);
 	}
 
