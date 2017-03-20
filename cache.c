@@ -80,7 +80,8 @@ cache_gc_timer(struct uloop_timeout *timeout)
 			continue;
 		/* Records other than A(AAA) are handled as services */
 		if (r->type != TYPE_A && r->type != TYPE_AAAA) {
-			cache_record_free(r);
+			if (cache_is_expired(r->time, r->ttl, 100))
+				cache_record_free(r);
 			continue;
 		}
 		if (r->refresh >= 100) {
