@@ -441,7 +441,7 @@ reconnect_socket4(struct uloop_timeout *timeout)
 
 	uloop_fd_add(&iface->fd, ULOOP_READ);
 	if (iface->multicast) {
-		dns_send_question(iface, "_services._dns-sd._udp.local", TYPE_PTR, 0);
+		dns_send_question(iface, C_DNS_SD, TYPE_PTR, 0);
 		announce_init(iface);
 	}
 
@@ -489,7 +489,7 @@ reconnect_socket6(struct uloop_timeout *timeout)
 	uloop_fd_add(&iface->fd, ULOOP_READ);
 
 	if (iface->multicast) {
-		dns_send_question(iface, "_services._dns-sd._udp.local", TYPE_PTR, 0);
+		dns_send_question(iface, C_DNS_SD, TYPE_PTR, 0);
 		announce_init(iface);
 	}
 

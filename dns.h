@@ -40,7 +40,7 @@
 #define MAX_NAME_LEN		8096
 #define MAX_DATA_LEN		8096
 
-#define C_DNS_SD                "_services._dns-sd._udp.local"
+#define C_DNS_SD		"_services._dns-sd._udp.local"
 
 struct dns_header {
 	uint16_t id;

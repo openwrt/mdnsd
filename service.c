@@ -65,7 +65,6 @@ service_update(struct vlist_tree *tree, struct vlist_node *node_new,
 
 static struct blob_buf b;
 static VLIST_TREE(services, avl_strcmp, service_update, false, false);
-const char *sdudp =  "_services._dns-sd._udp.local";
 static int service_init_announce;
 
 static const char *
@@ -163,7 +162,7 @@ service_announce_services(struct interface *iface, struct sockaddr *to, int ttl)
 		if (ttl) {
 			dns_init_answer();
 			service_add_ptr(s->service, ttl);
-			dns_send_answer(iface, to, sdudp);
+			dns_send_answer(iface, to, C_DNS_SD);
 		}
 		service_reply_single(iface, to, s, ttl, 0);
 	}

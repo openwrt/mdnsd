@@ -373,7 +373,7 @@ parse_question(struct interface *iface, struct sockaddr *from, char *name, struc
 		break;
 
 	case TYPE_PTR:
-		if (!strcmp(name, sdudp)) {
+		if (!strcmp(name, C_DNS_SD)) {
 			dns_reply_a(iface, to, announce_ttl);
 			service_announce_services(iface, to, announce_ttl);
 		} else {
