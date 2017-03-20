@@ -76,7 +76,7 @@ cache_gc_timer(struct uloop_timeout *timeout)
 	struct cache_service *s, *t;
 
 	avl_for_each_element_safe(&records, r, avl, p) {
-		if (!cache_is_expired(r->time, r->ttl, 100))
+		if (!cache_is_expired(r->time, r->ttl, r->refresh))
 			continue;
 		/* Records other and A(AAA) are handled as services */
 		if (r->type != TYPE_A && r->type != TYPE_AAAA) {
@@ -336,9 +336,11 @@ cache_answer(struct interface *iface, uint8_t *base, int blen, char *name, struc
 		if (!a->ttl) {
 			DBG(1, "D -> %s %s ttl:%d\n", dns_type_string(r->type), r->record, r->ttl);
 			r->time = now + 1 - r->ttl;
+			r->refresh = 100;
 		} else {
 			r->ttl = a->ttl;
 			r->time = now;
+			r->refresh = 50;
 			DBG(1, "A -> %s %s ttl:%d\n", dns_type_string(r->type), r->record, r->ttl);
 		}
 		return;
@@ -359,6 +361,7 @@ cache_answer(struct interface *iface, uint8_t *base, int blen, char *name, struc
 	r->rdlength = dlen;
 	r->time = now;
 	r->iface = iface;
+	r->refresh = 50;
 
 	if (tlen)
 		r->txt = memcpy(txt_ptr, rdata_buffer, tlen);
