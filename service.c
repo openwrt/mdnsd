@@ -46,6 +46,7 @@ struct service {
 	time_t t;
 
 	const char *id;
+	const char *instance;
 	const char *service;
 	const uint8_t *txt;
 	int txt_len;
@@ -74,14 +75,14 @@ static int service_init_announce;
  *
  * Service Instance Name = <Instance> . <Service> . <Domain>
  *
- * @service_domain: service name (a pair of labels) with domain name appended
+ * @s: service to generate service instance name for
  */
 static const char *
-service_instance_name(const char *service_domain)
+service_instance_name(struct service *s)
 {
 	static char buffer[256];
 
-	snprintf(buffer, sizeof(buffer), "%s.%s", umdns_host_label, service_domain);
+	snprintf(buffer, sizeof(buffer), "%s.%s", s->instance, s->service);
 
 	return buffer;
 }
@@ -127,7 +128,7 @@ service_timeout(struct service *s)
 static void
 service_reply_single(struct interface *iface, struct sockaddr *to, struct service *s, int ttl, int force)
 {
-	const char *host = service_instance_name(s->service);
+	const char *host = service_instance_name(s);
 	char *service = strstr(host, "._");
 	time_t t = service_timeout(s);
 
@@ -140,7 +141,7 @@ service_reply_single(struct interface *iface, struct sockaddr *to, struct servic
 	s->t = t;
 
 	dns_init_answer();
-	service_add_ptr(service_instance_name(s->service), ttl);
+	service_add_ptr(service_instance_name(s), ttl);
 	dns_send_answer(iface, to, service);
 
 	dns_init_answer();
@@ -229,6 +230,7 @@ service_load_blob(struct blob_attr *b)
 
 	s->port = blobmsg_get_u32(_tb[SERVICE_PORT]);
 	s->id = strcpy(d_id, blobmsg_name(b));
+	s->instance = umdns_host_label;
 	s->service = strcpy(d_service, blobmsg_get_string(_tb[SERVICE_SERVICE]));
 	s->active = 1;
 	s->t = 0;
