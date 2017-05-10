@@ -384,8 +384,8 @@ parse_question(struct interface *iface, struct sockaddr *from, char *name, struc
 			size_t len = dot ? dot - name : 0;
 
 			/* Make sure it's query for the instance name we use */
-			if (len && len == strlen(mdns_hostname) &&
-			    !strncmp(name, mdns_hostname, len))
+			if (len && len == strlen(umdns_host_label) &&
+			    !strncmp(name, umdns_host_label, len))
 				service_reply(iface, to, dot + 1, announce_ttl);
 		}
 		break;
@@ -395,7 +395,7 @@ parse_question(struct interface *iface, struct sockaddr *from, char *name, struc
 		host = strstr(name, ".local");
 		if (host)
 			*host = '\0';
-		if (!strcmp(mdns_hostname, name))
+		if (!strcmp(umdns_host_label, name))
 			dns_reply_a(iface, to, announce_ttl);
 		break;
 	};

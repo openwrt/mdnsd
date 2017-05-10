@@ -35,7 +35,7 @@
 uint8_t mdns_buf[MDNS_BUF_LEN];
 int debug = 0;
 
-char mdns_hostname[HOSTNAME_LEN];
+char umdns_host_label[HOSTNAME_LEN];
 char mdns_hostname_local[HOSTNAME_LEN + 6];
 
 uint32_t
@@ -65,13 +65,13 @@ void get_hostname(void)
 {
 	struct utsname utsname;
 
-	mdns_hostname[0] = 0;
+	umdns_host_label[0] = 0;
 	mdns_hostname_local[0] = 0;
 
 	if (uname(&utsname) < 0)
 		return;
 
-	snprintf(mdns_hostname, sizeof(mdns_hostname), "%s", utsname.nodename);
+	snprintf(umdns_host_label, sizeof(umdns_host_label), "%s", utsname.nodename);
 	snprintf(mdns_hostname_local, sizeof(mdns_hostname_local), "%s.local", utsname.nodename);
 }
 

@@ -72,7 +72,7 @@ service_name(const char *domain)
 {
 	static char buffer[256];
 
-	snprintf(buffer, sizeof(buffer), "%s.%s", mdns_hostname, domain);
+	snprintf(buffer, sizeof(buffer), "%s.%s", umdns_host_label, domain);
 
 	return buffer;
 }

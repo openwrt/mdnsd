@@ -27,7 +27,14 @@
 
 extern int debug;
 extern uint8_t mdns_buf[MDNS_BUF_LEN];
-extern char mdns_hostname[HOSTNAME_LEN];
+
+/**
+ * The first label of a host's fully qualified domain name
+ *
+ * E.g. just "example" for the domain name example.local.
+ */
+extern char umdns_host_label[HOSTNAME_LEN];
+
 extern char mdns_hostname_local[HOSTNAME_LEN + 6];
 
 extern void get_hostname(void);
