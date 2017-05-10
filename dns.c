@@ -378,15 +378,18 @@ parse_question(struct interface *iface, struct sockaddr *from, char *name, struc
 			dns_reply_a(iface, to, announce_ttl);
 			service_announce_services(iface, to, announce_ttl);
 		} else {
-			/* First dot separates instance name from the rest */
-			char *dot = strchr(name, '.');
-			/* Length of queried instance */
-			size_t len = dot ? dot - name : 0;
+			if (name[0] == '_') {
+				service_reply(iface, to, NULL, name, announce_ttl);
+			} else {
+				/* First dot separates instance name from the rest */
+				char *dot = strchr(name, '.');
 
-			/* Make sure it's query for the instance name we use */
-			if (len && len == strlen(umdns_host_label) &&
-			    !strncmp(name, umdns_host_label, len))
-				service_reply(iface, to, NULL, dot + 1, announce_ttl);
+				if (dot) {
+					*dot = '\0';
+					service_reply(iface, to, name, dot + 1, announce_ttl);
+					*dot = '.';
+				}
+			}
 		}
 		break;
 
