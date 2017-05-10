@@ -67,12 +67,21 @@ static struct blob_buf b;
 static VLIST_TREE(services, avl_strcmp, service_update, false, false);
 static int service_init_announce;
 
+/**
+ * service_instance_name - construct Service Instance Name as in RFC 6763
+ *
+ * RFC 6763 specifies Service Instance Names in the following way:
+ *
+ * Service Instance Name = <Instance> . <Service> . <Domain>
+ *
+ * @service_domain: service name (a pair of labels) with domain name appended
+ */
 static const char *
-service_name(const char *domain)
+service_instance_name(const char *service_domain)
 {
 	static char buffer[256];
 
-	snprintf(buffer, sizeof(buffer), "%s.%s", umdns_host_label, domain);
+	snprintf(buffer, sizeof(buffer), "%s.%s", umdns_host_label, service_domain);
 
 	return buffer;
 }
@@ -118,7 +127,7 @@ service_timeout(struct service *s)
 static void
 service_reply_single(struct interface *iface, struct sockaddr *to, struct service *s, int ttl, int force)
 {
-	const char *host = service_name(s->service);
+	const char *host = service_instance_name(s->service);
 	char *service = strstr(host, "._");
 	time_t t = service_timeout(s);
 
@@ -131,7 +140,7 @@ service_reply_single(struct interface *iface, struct sockaddr *to, struct servic
 	s->t = t;
 
 	dns_init_answer();
-	service_add_ptr(service_name(s->service), ttl);
+	service_add_ptr(service_instance_name(s->service), ttl);
 	dns_send_answer(iface, to, service);
 
 	dns_init_answer();
