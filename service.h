@@ -16,7 +16,7 @@
 
 extern void service_init(int announce);
 extern void service_cleanup(void);
-extern void service_reply(struct interface *iface, struct sockaddr *to, const char *match, int ttl);
+extern void service_reply(struct interface *iface, struct sockaddr *to, const char *instance, const char *service_domain, int ttl);
 extern void service_announce_services(struct interface *iface, struct sockaddr *to, int ttl);
 
 #endif

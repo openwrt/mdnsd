@@ -369,7 +369,7 @@ parse_question(struct interface *iface, struct sockaddr *from, char *name, struc
 	case TYPE_ANY:
 		if (!strcmp(name, mdns_hostname_local)) {
 			dns_reply_a(iface, to, announce_ttl);
-			service_reply(iface, to, NULL, announce_ttl);
+			service_reply(iface, to, NULL, NULL, announce_ttl);
 		}
 		break;
 
@@ -386,7 +386,7 @@ parse_question(struct interface *iface, struct sockaddr *from, char *name, struc
 			/* Make sure it's query for the instance name we use */
 			if (len && len == strlen(umdns_host_label) &&
 			    !strncmp(name, umdns_host_label, len))
-				service_reply(iface, to, dot + 1, announce_ttl);
+				service_reply(iface, to, NULL, dot + 1, announce_ttl);
 		}
 		break;
 

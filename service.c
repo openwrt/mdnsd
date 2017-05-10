@@ -152,13 +152,16 @@ service_reply_single(struct interface *iface, struct sockaddr *to, struct servic
 }
 
 void
-service_reply(struct interface *iface, struct sockaddr *to, const char *match, int ttl)
+service_reply(struct interface *iface, struct sockaddr *to, const char *instance, const char *service_domain, int ttl)
 {
 	struct service *s;
 
 	vlist_for_each_element(&services, s, node) {
-		if (!match || !strcmp(s->service, match))
-			service_reply_single(iface, to, s, ttl, 0);
+		if (instance && strcmp(s->instance, instance))
+			continue;
+		if (service_domain && strcmp(s->service, service_domain))
+			continue;
+		service_reply_single(iface, to, s, ttl, 0);
 	}
 }
 
