@@ -34,6 +34,7 @@
 #include "announce.h"
 
 enum {
+	SERVICE_INSTANCE,
 	SERVICE_SERVICE,
 	SERVICE_PORT,
 	SERVICE_TXT,
@@ -55,6 +56,7 @@ struct service {
 };
 
 static const struct blobmsg_policy service_policy[__SERVICE_MAX] = {
+	[SERVICE_INSTANCE] = { .name = "instance", .type = BLOBMSG_TYPE_STRING },
 	[SERVICE_SERVICE] = { .name = "service", .type = BLOBMSG_TYPE_STRING },
 	[SERVICE_PORT] = { .name = "port", .type = BLOBMSG_TYPE_INT32 },
 	[SERVICE_TXT] = { .name = "txt", .type = BLOBMSG_TYPE_ARRAY },
@@ -210,7 +212,7 @@ service_load_blob(struct blob_attr *b)
 {
 	struct blob_attr *txt, *_tb[__SERVICE_MAX];
 	struct service *s;
-	char *d_service, *d_id;
+	char *d_instance, *d_service, *d_id;
 	uint8_t *d_txt;
 	int rem2;
 	int txt_len = 0;
@@ -226,6 +228,7 @@ service_load_blob(struct blob_attr *b)
 
 	s = calloc_a(sizeof(*s),
 		&d_id, strlen(blobmsg_name(b)) + 1,
+		&d_instance, _tb[SERVICE_INSTANCE] ? strlen(blobmsg_get_string(_tb[SERVICE_INSTANCE])) + 1 : 0,
 		&d_service, strlen(blobmsg_get_string(_tb[SERVICE_SERVICE])) + 1,
 		&d_txt, txt_len);
 	if (!s)
@@ -233,7 +236,10 @@ service_load_blob(struct blob_attr *b)
 
 	s->port = blobmsg_get_u32(_tb[SERVICE_PORT]);
 	s->id = strcpy(d_id, blobmsg_name(b));
-	s->instance = umdns_host_label;
+	if (_tb[SERVICE_INSTANCE])
+		s->instance = strcpy(d_instance, blobmsg_get_string(_tb[SERVICE_INSTANCE]));
+	else
+		s->instance = umdns_host_label;
 	s->service = strcpy(d_service, blobmsg_get_string(_tb[SERVICE_SERVICE]));
 	s->active = 1;
 	s->t = 0;
