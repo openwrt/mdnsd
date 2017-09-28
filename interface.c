@@ -233,9 +233,6 @@ read_socket4(struct uloop_fd *u, unsigned int events)
 		}
 	}
 
-	if (ttl != 255)
-		return;
-
 	if (debug > 1) {
 		char buf[256];
 
@@ -309,9 +306,6 @@ read_socket6(struct uloop_fd *u, unsigned int events)
 			return;
 		}
 	}
-
-	if (ttl != 255)
-		return;
 
 	if (debug > 1) {
 		char buf[256];
