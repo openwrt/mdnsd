@@ -121,8 +121,10 @@ service_timeout(struct service *s)
 {
 	time_t t = monotonic_time();
 
-	if (t - s->t <= TOUT_LOOKUP)
+	if (t - s->t <= TOUT_LOOKUP) {
+		DBG(2, "t=%lu, s->t=%lu, t - s->t = %lu\n", t, s->t, t - s->t);
 		return 0;
+	}
 
 	return t;
 }
