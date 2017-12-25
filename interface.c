@@ -353,7 +353,7 @@ interface_mcast_setup4(struct interface *iface)
 	setsockopt(fd, IPPROTO_IP, IP_DROP_MEMBERSHIP, &mreq, sizeof(mreq));
 
 	if (setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) < 0) {
-		fprintf(stderr, "failed to join multicast group: %s\n", strerror(errno));
+		fprintf(stderr, "failed to join multicast group: %m\n");
 		close(fd);
 		fd = -1;
 		return -1;
@@ -387,7 +387,7 @@ interface_socket_setup6(struct interface *iface)
 
 	setsockopt(fd, IPPROTO_IPV6, IPV6_LEAVE_GROUP, &mreq, sizeof(mreq));
 	if (setsockopt(fd, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) < 0) {
-		fprintf(stderr, "failed to join multicast group: %s\n", strerror(errno));
+		fprintf(stderr, "failed to join multicast group: %m\n");
 		close(fd);
 		fd = -1;
 		return -1;
@@ -409,7 +409,7 @@ reconnect_socket4(struct uloop_timeout *timeout)
 	iface->fd.fd = usock(USOCK_UDP | USOCK_SERVER | USOCK_NONBLOCK | USOCK_IPV4ONLY,
 		(iface->multicast) ? (iface->mcast_addr) : (iface->v4_addrs), "5353");
 	if (iface->fd.fd < 0) {
-		fprintf(stderr, "failed to add listener %s: %s\n", iface->mcast_addr, strerror(errno));
+		fprintf(stderr, "failed to add listener %s: %m\n", iface->mcast_addr);
 		goto retry;
 	}
 
@@ -456,7 +456,7 @@ reconnect_socket6(struct uloop_timeout *timeout)
 	snprintf(mcast_addr, sizeof(mcast_addr), "%s%%%s", (iface->multicast) ? (iface->mcast_addr) : (iface->v6_addrs), iface->name);
 	iface->fd.fd = usock(USOCK_UDP | USOCK_SERVER | USOCK_NONBLOCK | USOCK_IPV6ONLY, mcast_addr, "5353");
 	if (iface->fd.fd < 0) {
-		fprintf(stderr, "failed to add listener %s: %s\n", mcast_addr, strerror(errno));
+		fprintf(stderr, "failed to add listener %s: %m\n", mcast_addr);
 		goto retry;
 	}
 
