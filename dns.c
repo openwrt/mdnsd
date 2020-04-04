@@ -237,16 +237,16 @@ static struct dns_header*
 dns_consume_header(uint8_t **data, int *len)
 {
 	struct dns_header *h = (struct dns_header *) *data;
-	uint16_t *swap = (uint16_t *) h;
-	int endianess = 6;
 
 	if (*len < sizeof(struct dns_header))
 		return NULL;
 
-	while (endianess--) {
-		*swap = be16_to_cpu(*swap);
-		swap++;
-	}
+	h->id = be16_to_cpu(h->id);
+	h->flags = be16_to_cpu(h->flags);
+	h->questions = be16_to_cpu(h->questions);
+	h->answers = be16_to_cpu(h->answers);
+	h->authority = be16_to_cpu(h->authority);
+	h->additional = be16_to_cpu(h->additional);
 
 	*len -= sizeof(struct dns_header);
 	*data += sizeof(struct dns_header);
@@ -258,16 +258,12 @@ static struct dns_question*
 dns_consume_question(uint8_t **data, int *len)
 {
 	struct dns_question *q = (struct dns_question *) *data;
-	uint16_t *swap = (uint16_t *) q;
-	int endianess = 2;
 
 	if (*len < sizeof(struct dns_question))
 		return NULL;
 
-	while (endianess--) {
-		*swap = be16_to_cpu(*swap);
-		swap++;
-	}
+	q->type = be16_to_cpu(q->type);
+	q->class = be16_to_cpu(q->class);
 
 	*len -= sizeof(struct dns_question);
 	*data += sizeof(struct dns_question);

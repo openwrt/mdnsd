@@ -49,7 +49,7 @@ struct dns_header {
 	uint16_t answers;
 	uint16_t authority;
 	uint16_t additional;
-};
+} __attribute__((packed));
 
 struct dns_srv_data {
 	uint16_t priority;
