@@ -244,6 +244,7 @@ read_socket4(struct uloop_fd *u, unsigned int events)
 		fprintf(stderr, "  dst %s\n", buf);
 		inet_ntop(AF_INET, &inp->ipi_addr, buf, 256);
 		fprintf(stderr, "  real %s\n", buf);
+		fprintf(stderr, "  ttl %u\n", ttl);
 	}
 
 	if (inp->ipi_ifindex != iface->ifindex)
@@ -316,6 +317,7 @@ read_socket6(struct uloop_fd *u, unsigned int events)
 		fprintf(stderr, "  src %s:%d\n", buf, ntohs(from.sin6_port));
 		inet_ntop(AF_INET6, &inp->ipi6_addr, buf, 256);
 		fprintf(stderr, "  dst %s\n", buf);
+		fprintf(stderr, "  ttl %u\n", ttl);
 	}
 
 	if (inp->ipi6_ifindex != iface->ifindex)
