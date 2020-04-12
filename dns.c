@@ -222,6 +222,7 @@ scan_name(const uint8_t *buffer, int len)
 		if (IS_COMPRESSED(l))
 			return offset + 2;
 
+		if (l + 1 > len) return -1;
 		len -= l + 1;
 		offset += l + 1;
 		buffer += l + 1;
@@ -317,7 +318,7 @@ static int parse_answer(struct interface *iface, struct sockaddr *from,
 	struct dns_answer *a;
 	uint8_t *rdata;
 
-	if (!name) {
+	if (!name || rlen < 0) {
 		fprintf(stderr, "dropping: bad question\n");
 		return -1;
 	}
@@ -421,7 +422,7 @@ dns_handle_packet(struct interface *iface, struct sockaddr *from, uint16_t port,
 		char *name = dns_consume_name(buffer, len, &b, &rlen);
 		struct dns_question *q;
 
-		if (!name) {
+		if (!name || rlen < 0) {
 			fprintf(stderr, "dropping: bad name\n");
 			return;
 		}
