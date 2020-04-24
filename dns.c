@@ -318,7 +318,7 @@ static int parse_answer(struct interface *iface, struct sockaddr *from,
 	struct dns_answer *a;
 	uint8_t *rdata;
 
-	if (!name || rlen < 0) {
+	if (!name || *rlen < 0) {
 		fprintf(stderr, "dropping: bad question\n");
 		return -1;
 	}
