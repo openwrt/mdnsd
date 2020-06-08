@@ -200,10 +200,8 @@ dns_reply_a(struct interface *iface, struct sockaddr *to, int ttl)
 			dns_add_answer(TYPE_A, (uint8_t *) &sa->sin_addr, 4, ttl);
 		}
 		if (ifa->ifa_addr->sa_family == AF_INET6) {
-			uint8_t ll_prefix[] = {0xfe, 0x80 };
 			sa6 = (struct sockaddr_in6 *) ifa->ifa_addr;
-			if (!memcmp(&sa6->sin6_addr, &ll_prefix, 2))
-				dns_add_answer(TYPE_AAAA, (uint8_t *) &sa6->sin6_addr, 16, ttl);
+			dns_add_answer(TYPE_AAAA, (uint8_t *) &sa6->sin6_addr, 16, ttl);
 		}
 	}
 	dns_send_answer(iface, to, mdns_hostname_local);
