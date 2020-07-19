@@ -218,6 +218,7 @@ service_load_blob(struct blob_attr *b)
 	uint8_t *d_txt;
 	int rem2;
 	int txt_len = 0;
+	unsigned int n;
 
 	blobmsg_parse(service_policy, ARRAY_SIZE(service_policy),
 		_tb, blobmsg_data(b), blobmsg_data_len(b));
@@ -228,8 +229,9 @@ service_load_blob(struct blob_attr *b)
 		blobmsg_for_each_attr(txt, _tb[SERVICE_TXT], rem2)
 			txt_len += 1 + strlen(blobmsg_get_string(txt));
 
+	n = strlen(blobmsg_name(b)) + 1;
 	s = calloc_a(sizeof(*s),
-		&d_id, strlen(blobmsg_name(b)) + 1,
+		&d_id, n,
 		&d_instance, _tb[SERVICE_INSTANCE] ? strlen(blobmsg_get_string(_tb[SERVICE_INSTANCE])) + 1 : 0,
 		&d_service, strlen(blobmsg_get_string(_tb[SERVICE_SERVICE])) + 1,
 		&d_txt, txt_len);
@@ -237,7 +239,7 @@ service_load_blob(struct blob_attr *b)
 		return;
 
 	s->port = blobmsg_get_u32(_tb[SERVICE_PORT]);
-	s->id = strcpy(d_id, blobmsg_name(b));
+	s->id = strncpy(d_id, blobmsg_name(b), n);
 	if (_tb[SERVICE_INSTANCE])
 		s->instance = strcpy(d_instance, blobmsg_get_string(_tb[SERVICE_INSTANCE]));
 	else
