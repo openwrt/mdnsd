@@ -357,7 +357,7 @@ interface_mcast_setup4(struct interface *iface)
 	if (setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) < 0) {
 		fprintf(stderr, "failed to join multicast group: %m\n");
 		close(fd);
-		fd = -1;
+		iface->fd.fd = -1;
 		return -1;
 	}
 
@@ -391,7 +391,7 @@ interface_socket_setup6(struct interface *iface)
 	if (setsockopt(fd, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) < 0) {
 		fprintf(stderr, "failed to join multicast group: %m\n");
 		close(fd);
-		fd = -1;
+		iface->fd.fd = -1;
 		return -1;
 	}
 
