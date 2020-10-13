@@ -5,7 +5,7 @@ ADD_DEFINITIONS(-Os -ggdb -Wall -Werror --std=gnu99 -Wmissing-declarations)
 
 SET(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "")
 
-SET(SOURCES main.c dns.c announce.c cache.c service.c util.c ubus.c interface.c)
+SET(SOURCES dns.c announce.c cache.c service.c util.c ubus.c interface.c)
 
 FIND_PATH(ubox_include_dir NAMES libubox/usock.h)
 FIND_PATH(ubus_include_dir NAMES libubus.h)
@@ -22,9 +22,11 @@ IF(DEBUG)
   ADD_DEFINITIONS(-DDEBUG -g3)
 ENDIF()
 
-ADD_EXECUTABLE(umdns ${SOURCES})
+ADD_LIBRARY(umdns-lib STATIC ${SOURCES})
+TARGET_LINK_LIBRARIES(umdns-lib ${LIBS})
 
-TARGET_LINK_LIBRARIES(umdns ${LIBS})
+ADD_EXECUTABLE(umdns main.c)
+TARGET_LINK_LIBRARIES(umdns umdns-lib)
 
 INSTALL(TARGETS umdns
 	RUNTIME DESTINATION sbin
