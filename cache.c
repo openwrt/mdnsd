@@ -303,7 +303,7 @@ void cache_answer(struct interface *iface, struct sockaddr *from, uint8_t *base,
 		if (rdlength <= 2)
 			return;
 
-		memcpy(rdata_buffer, &rdata[1], rdlength);
+		memcpy(rdata_buffer, &rdata[1], rdlength-1);
 		rdata_buffer[rdlength] = rdata_buffer[rdlength + 1] = '\0';
 		tlen = rdlength + 1;
 		p = &rdata_buffer[*rdata];
