@@ -31,6 +31,19 @@ TARGET_LINK_LIBRARIES(umdns umdns-lib)
 IF(UNIT_TESTING)
   ENABLE_TESTING()
   ADD_SUBDIRECTORY(tests)
+
+  IF(CMAKE_C_COMPILER_ID STREQUAL "Clang")
+	ADD_LIBRARY(umdns-lib-san STATIC ${SOURCES})
+	TARGET_COMPILE_OPTIONS(umdns-lib-san PRIVATE -g -fno-omit-frame-pointer -fsanitize=undefined,address,leak -fno-sanitize-recover=all)
+    TARGET_LINK_OPTIONS(umdns-lib-san PRIVATE -fsanitize=undefined,address,leak)
+	TARGET_LINK_LIBRARIES(umdns-lib-san ${LIBS})
+
+    ADD_EXECUTABLE(umdns-san main.c ${SOURCES})
+	TARGET_COMPILE_OPTIONS(umdns-san PRIVATE -g -fno-omit-frame-pointer -fsanitize=undefined,address,leak -fno-sanitize-recover=all)
+    TARGET_LINK_OPTIONS(umdns-san PRIVATE -fsanitize=undefined,address,leak)
+	TARGET_LINK_LIBRARIES(umdns-san umdns-lib-san)
+  ENDIF()
+
 ENDIF()
 
 INSTALL(TARGETS umdns
