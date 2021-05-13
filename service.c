@@ -230,9 +230,9 @@ service_load_blob(struct blob_attr *b)
 		blobmsg_for_each_attr(txt, _tb[SERVICE_TXT], rem2)
 			txt_len += 1 + strlen(blobmsg_get_string(txt));
 
-	n = strlen(blobmsg_name(b)) + 1;
+	n = strlen(blobmsg_name(b));
 	s = calloc_a(sizeof(*s),
-		&d_id, n,
+		&d_id, n + 1,
 		&d_instance, _tb[SERVICE_INSTANCE] ? strlen(blobmsg_get_string(_tb[SERVICE_INSTANCE])) + 1 : 0,
 		&d_service, strlen(blobmsg_get_string(_tb[SERVICE_SERVICE])) + 1,
 		&d_txt, txt_len);
