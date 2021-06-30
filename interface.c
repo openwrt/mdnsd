@@ -511,7 +511,7 @@ static void interface_start(struct interface *iface)
 		iface->fd.cb = read_socket4;
 		iface->reconnect.cb = reconnect_socket4;
 	}
-	uloop_timeout_set(&iface->reconnect, 100);
+	uloop_timeout_set(&iface->reconnect, 1000);
 }
 
 static void
