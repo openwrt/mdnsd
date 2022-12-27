@@ -47,6 +47,15 @@ umdns_update(struct ubus_context *ctx, struct ubus_object *obj,
 	return 0;
 }
 
+enum {
+	BROWSE_SERVICE,
+	BROWSE_MAX
+};
+
+static const struct blobmsg_policy browse_policy[] = {
+	[BROWSE_SERVICE]	= { "service", BLOBMSG_TYPE_STRING },
+};
+
 static int
 umdns_browse(struct ubus_context *ctx, struct ubus_object *obj,
 		struct ubus_request_data *req, const char *method,
@@ -54,7 +63,13 @@ umdns_browse(struct ubus_context *ctx, struct ubus_object *obj,
 {
 	struct cache_service *s, *q;
 	char *buffer = (char *) mdns_buf;
+	struct blob_attr *data[BROWSE_MAX];
 	void *c1 = NULL, *c2;
+	char *service = NULL;
+
+	blobmsg_parse(browse_policy, BROWSE_MAX, data, blob_data(msg), blob_len(msg));
+	if (data[BROWSE_SERVICE])
+		service = blobmsg_get_string(data[BROWSE_SERVICE]);
 
 	blob_buf_init(&b, 0);
 	avl_for_each_element(&services, s, avl) {
@@ -66,7 +81,8 @@ umdns_browse(struct ubus_context *ctx, struct ubus_object *obj,
 			*local = '\0';
 		if (!strcmp(buffer, "_tcp") || !strcmp(buffer, "_udp"))
 			continue;
-
+		if (service && strcmp(buffer, service))
+			continue;
 		if (!c1) {
 			c1 = blobmsg_open_table(&b, buffer);
 		}
@@ -224,8 +240,8 @@ static const struct ubus_method umdns_methods[] = {
 	UBUS_METHOD("set_config", umdns_set_config, config_policy),
 	UBUS_METHOD("query", umdns_query, query_policy),
 	UBUS_METHOD("fetch", umdns_query, query_policy),
+	UBUS_METHOD("browse", umdns_browse, browse_policy),
 	UBUS_METHOD_NOARG("update", umdns_update),
-	UBUS_METHOD_NOARG("browse", umdns_browse),
 	UBUS_METHOD_NOARG("hosts", umdns_hosts),
 	UBUS_METHOD_NOARG("reload", umdns_reload),
 };
