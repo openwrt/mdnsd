@@ -382,20 +382,65 @@ void cache_answer(struct interface *iface, struct sockaddr *from, uint8_t *base,
 }
 
 void
-cache_dump_records(struct blob_buf *buf, const char *name, int txt_array)
+cache_dump_records(struct blob_buf *buf, const char *name, int array)
 {
 	struct cache_record *r, *last, *next;
 	const char *txt;
 	char buffer[INET6_ADDRSTRLEN];
+	void *c = NULL;
 
 	last = avl_last_element(&records, last, avl);
 	for (r = avl_find_element(&records, name, r, avl); r; r = next) {
 		switch (r->type) {
+		case TYPE_A:
+			if (!c && array)
+				c = blobmsg_open_array(buf, "ipv4");
+			if ((r->rdlength == 4) && inet_ntop(AF_INET, r->rdata, buffer, INET6_ADDRSTRLEN))
+				blobmsg_add_string(buf, "ipv4", buffer);
+			break;
+		}
+
+		if (r == last)
+			break;
+
+		next = avl_next_element(r, avl);
+		if (strcmp(r->record, next->record) != 0)
+			break;
+	}
+
+	if (c) {
+		blobmsg_close_array(buf, c);
+		c = NULL;
+	}
+
+	for (r = avl_find_element(&records, name, r, avl); r; r = next) {
+		switch (r->type) {
+		case TYPE_AAAA:
+			if (!c && array)
+				c = blobmsg_open_array(buf, "ipv6");
+			if ((r->rdlength == 16) && inet_ntop(AF_INET6, r->rdata, buffer, INET6_ADDRSTRLEN))
+				blobmsg_add_string(buf, "ipv6", buffer);
+			break;
+		}
+
+		if (r == last)
+			break;
+
+		next = avl_next_element(r, avl);
+		if (strcmp(r->record, next->record) != 0)
+			break;
+	}
+
+	if (c) {
+		blobmsg_close_array(buf, c);
+		c = NULL;
+	}
+
+	for (r = avl_find_element(&records, name, r, avl); r; r = next) {
+		switch (r->type) {
 		case TYPE_TXT:
 			if (r->txt && strlen(r->txt)) {
-				void *c = NULL;
-
-				if (txt_array)
+				if (array)
 					c = blobmsg_open_array(buf, "txt");
 
 				txt = r->txt;
@@ -403,7 +448,7 @@ cache_dump_records(struct blob_buf *buf, const char *name, int txt_array)
 					blobmsg_add_string(buf, "txt", txt);
 					txt = &txt[strlen(txt) + 1];
 				} while (*txt);
-				if (c)
+				if (array)
 					blobmsg_close_array(buf, c);
 			}
 			break;
@@ -411,16 +456,6 @@ cache_dump_records(struct blob_buf *buf, const char *name, int txt_array)
 		case TYPE_SRV:
 			if (r->port)
 				blobmsg_add_u32(buf, "port", r->port);
-			break;
-
-		case TYPE_A:
-			if ((r->rdlength == 4) && inet_ntop(AF_INET, r->rdata, buffer, INET6_ADDRSTRLEN))
-				blobmsg_add_string(buf, "ipv4", buffer);
-			break;
-
-		case TYPE_AAAA:
-			if ((r->rdlength == 16) && inet_ntop(AF_INET6, r->rdata, buffer, INET6_ADDRSTRLEN))
-				blobmsg_add_string(buf, "ipv6", buffer);
 			break;
 		}
 

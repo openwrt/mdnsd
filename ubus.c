@@ -49,13 +49,13 @@ umdns_update(struct ubus_context *ctx, struct ubus_object *obj,
 
 enum {
 	BROWSE_SERVICE,
-	BROWSE_TXT_ARRAY,
+	BROWSE_ARRAY,
 	BROWSE_MAX
 };
 
 static const struct blobmsg_policy browse_policy[] = {
 	[BROWSE_SERVICE]	= { "service", BLOBMSG_TYPE_STRING },
-	[BROWSE_TXT_ARRAY]	= { "txt_array", BLOBMSG_TYPE_BOOL },
+	[BROWSE_ARRAY]		= { "array", BLOBMSG_TYPE_BOOL },
 };
 
 static int
@@ -68,13 +68,13 @@ umdns_browse(struct ubus_context *ctx, struct ubus_object *obj,
 	struct blob_attr *data[BROWSE_MAX];
 	void *c1 = NULL, *c2;
 	char *service = NULL;
-	int txt_array = 0;
+	int array = 0;
 
 	blobmsg_parse(browse_policy, BROWSE_MAX, data, blob_data(msg), blob_len(msg));
 	if (data[BROWSE_SERVICE])
 		service = blobmsg_get_string(data[BROWSE_SERVICE]);
-	if (data[BROWSE_TXT_ARRAY])
-		txt_array = blobmsg_get_u8(data[BROWSE_TXT_ARRAY]);
+	if (data[BROWSE_ARRAY])
+		array = blobmsg_get_u8(data[BROWSE_ARRAY]);
 
 	blob_buf_init(&b, 0);
 	avl_for_each_element(&services, s, avl) {
@@ -97,8 +97,8 @@ umdns_browse(struct ubus_context *ctx, struct ubus_object *obj,
 			*local = '\0';
 		c2 = blobmsg_open_table(&b, buffer);
 		strncat(buffer, ".local", MAX_NAME_LEN);
-		cache_dump_records(&b, buffer, txt_array);
-		cache_dump_records(&b, s->entry, txt_array);
+		cache_dump_records(&b, buffer, array);
+		cache_dump_records(&b, s->entry, array);
 		blobmsg_close_table(&b, c2);
 		q = avl_next_element(s, avl);
 		if (!q || avl_is_last(&services, &s->avl) || strcmp(s->avl.key, q->avl.key)) {
