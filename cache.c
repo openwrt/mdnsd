@@ -382,7 +382,7 @@ void cache_answer(struct interface *iface, struct sockaddr *from, uint8_t *base,
 }
 
 void
-cache_dump_records(struct blob_buf *buf, const char *name)
+cache_dump_records(struct blob_buf *buf, const char *name, int txt_array)
 {
 	struct cache_record *r, *last, *next;
 	const char *txt;
@@ -393,11 +393,18 @@ cache_dump_records(struct blob_buf *buf, const char *name)
 		switch (r->type) {
 		case TYPE_TXT:
 			if (r->txt && strlen(r->txt)) {
+				void *c = NULL;
+
+				if (txt_array)
+					c = blobmsg_open_array(buf, "txt");
+
 				txt = r->txt;
 				do {
 					blobmsg_add_string(buf, "txt", txt);
 					txt = &txt[strlen(txt) + 1];
 				} while (*txt);
+				if (c)
+					blobmsg_close_array(buf, c);
 			}
 			break;
 
