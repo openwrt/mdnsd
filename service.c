@@ -38,6 +38,7 @@ enum {
 	SERVICE_INSTANCE,
 	SERVICE_SERVICE,
 	SERVICE_PORT,
+	SERVICE_TOUT_LOOKUP,
 	SERVICE_TXT,
 	__SERVICE_MAX,
 };
@@ -50,6 +51,7 @@ struct service {
 	const char *id;
 	const char *instance;
 	const char *service;
+	int32_t tout_lookup;
 	const uint8_t *txt;
 	int txt_len;
 	int port;
@@ -60,6 +62,7 @@ static const struct blobmsg_policy service_policy[__SERVICE_MAX] = {
 	[SERVICE_INSTANCE] = { .name = "instance", .type = BLOBMSG_TYPE_STRING },
 	[SERVICE_SERVICE] = { .name = "service", .type = BLOBMSG_TYPE_STRING },
 	[SERVICE_PORT] = { .name = "port", .type = BLOBMSG_TYPE_INT32 },
+	[SERVICE_TOUT_LOOKUP] = { .name = "timeout_lookup", .type = BLOBMSG_TYPE_INT32 },
 	[SERVICE_TXT] = { .name = "txt", .type = BLOBMSG_TYPE_ARRAY },
 };
 
@@ -122,7 +125,7 @@ service_timeout(struct service *s)
 {
 	time_t t = monotonic_time();
 
-	if (t - s->t <= TOUT_LOOKUP) {
+	if (t - s->t <= s->tout_lookup) {
 		DBG(2, "t=%" PRId64 ", s->t=%" PRId64 ", t - s->t = %" PRId64 "\n", (int64_t)t, (int64_t)s->t, (int64_t)(t - s->t));
 		return 0;
 	}
@@ -240,6 +243,8 @@ service_load_blob(struct blob_attr *b)
 		return;
 
 	s->port = blobmsg_get_u32(_tb[SERVICE_PORT]);
+	s->tout_lookup = _tb[SERVICE_TOUT_LOOKUP] ?
+				blobmsg_get_u32(_tb[SERVICE_TOUT_LOOKUP]) : TOUT_LOOKUP;
 	s->id = strncpy(d_id, blobmsg_name(b), n);
 	if (_tb[SERVICE_INSTANCE])
 		s->instance = strcpy(d_instance, blobmsg_get_string(_tb[SERVICE_INSTANCE]));
