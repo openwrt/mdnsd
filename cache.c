@@ -42,7 +42,13 @@
 
 static struct uloop_timeout cache_gc;
 struct avl_tree services;
-AVL_TREE(records, avl_strcmp, true, NULL);
+
+static int avl_strcasecmp(const void *k1, const void *k2, void *ptr)
+{
+	return strcasecmp(k1, k2);
+}
+
+AVL_TREE(records, avl_strcasecmp, true, NULL);
 
 static void
 cache_record_free(struct cache_record *r)
@@ -111,7 +117,7 @@ cache_gc_timer(struct uloop_timeout *timeout)
 int
 cache_init(void)
 {
-	avl_init(&services, avl_strcmp, true, NULL);
+	avl_init(&services, avl_strcasecmp, true, NULL);
 
 	cache_gc.cb = cache_gc_timer;
 	uloop_timeout_set(&cache_gc, 10000);
