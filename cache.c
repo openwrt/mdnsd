@@ -197,13 +197,10 @@ cache_record_find(char *record, int type, int port, int rdlength, uint8_t *rdata
 {
 	struct cache_record *l = avl_find_element(&records, record, l, avl);
 
-	if (!l)
-		return NULL;
-
-	while (l && !avl_is_last(&records, &l->avl) && !strcmp(l->record, record)) {
+	while (l && !strcmp(l->record, record)) {
 		struct cache_record *r = l;
 
-		l = avl_next_element(l, avl);
+		l = !avl_is_last(&records, &l->avl) ? avl_next_element(l, avl) : NULL;
 		if (r->type != type)
 			continue;
 
@@ -233,13 +230,10 @@ cache_host_is_known(char *record)
 {
 	struct cache_record *l = avl_find_element(&records, record, l, avl);
 
-	if (!l)
-		return 0;
-
-	while (l && !avl_is_last(&records, &l->avl) && !strcmp(l->record, record)) {
+	while (l && !strcmp(l->record, record)) {
 		struct cache_record *r = l;
 
-		l = avl_next_element(l, avl);
+		l = !avl_is_last(&records, &l->avl) ? avl_next_element(l, avl) : NULL;
 		if ((r->type != TYPE_A) && (r->type != TYPE_AAAA))
 			continue;
 		return 1;
