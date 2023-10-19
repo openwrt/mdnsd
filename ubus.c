@@ -119,14 +119,28 @@ umdns_browse(struct ubus_context *ctx, struct ubus_object *obj,
 	return UBUS_STATUS_OK;
 }
 
+enum {
+	HOSTS_ARRAY,
+	__HOSTS_MAX
+};
+static const struct blobmsg_policy hosts_policy[] = {
+	[HOSTS_ARRAY] = { "array", BLOBMSG_TYPE_BOOL }
+};
+
 static int
 umdns_hosts(struct ubus_context *ctx, struct ubus_object *obj,
 		struct ubus_request_data *req, const char *method,
 		struct blob_attr *msg)
 {
 	struct cache_record *prev = NULL;
+	struct blob_attr *tb[__HOSTS_MAX];
 	struct cache_record *r;
+	bool array = false;
 	void *c;
+
+	blobmsg_parse(hosts_policy, __HOSTS_MAX, tb, blobmsg_data(msg), blobmsg_len(msg));
+	if (tb[HOSTS_ARRAY])
+		array = blobmsg_get_bool(tb[HOSTS_ARRAY]);
 
 	blob_buf_init(&b, 0);
 	avl_for_each_element(&records, r, avl) {
@@ -135,7 +149,7 @@ umdns_hosts(struct ubus_context *ctx, struct ubus_object *obj,
 		/* Query each domain just once */
 		if (!prev || strcmp(r->record, prev->record)) {
 			c = blobmsg_open_table(&b, r->record);
-			cache_dump_records(&b, r->record, false, NULL);
+			cache_dump_records(&b, r->record, array, NULL);
 			blobmsg_close_table(&b, c);
 		}
 		prev = r;
@@ -255,7 +269,7 @@ static const struct ubus_method umdns_methods[] = {
 	UBUS_METHOD("fetch", umdns_query, query_policy),
 	UBUS_METHOD("browse", umdns_browse, browse_policy),
 	UBUS_METHOD_NOARG("update", umdns_update),
-	UBUS_METHOD_NOARG("hosts", umdns_hosts),
+	UBUS_METHOD("hosts", umdns_hosts, hosts_policy),
 	UBUS_METHOD_NOARG("reload", umdns_reload),
 };
 
