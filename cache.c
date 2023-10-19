@@ -454,6 +454,8 @@ cache_dump_records(struct blob_buf *buf, const char *name, int array)
 			break;
 
 		case TYPE_SRV:
+			if (r->rdata)
+				blobmsg_add_string(buf, "host", (char *)r->rdata + sizeof(struct dns_srv_data));
 			if (r->port)
 				blobmsg_add_u32(buf, "port", r->port);
 			break;
