@@ -187,7 +187,7 @@ cache_service(struct interface *iface, char *entry, int hlen, int ttl)
 	avl_insert(&services, &s->avl);
 
 	if (!hlen)
-		dns_send_question(iface, NULL, entry, TYPE_PTR, iface->multicast);
+		dns_send_question(iface, NULL, entry, TYPE_PTR, interface_multicast(iface));
 
 	return s;
 }
@@ -363,7 +363,7 @@ void cache_answer(struct interface *iface, struct sockaddr *from, uint8_t *base,
 	r->rdlength = dlen;
 	r->time = now;
 	r->iface = iface;
-	if (iface->v6)
+	if (interface_ipv6(iface))
 		memcpy(&r->from, from, sizeof(struct sockaddr_in6));
 	else
 		memcpy(&r->from, from, sizeof(struct sockaddr_in));

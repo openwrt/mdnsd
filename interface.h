@@ -25,35 +25,56 @@
 
 extern struct vlist_tree interfaces;
 
+#define SOCKTYPE_BIT_IPV6	(1 << 1)
+#define SOCKTYPE_BIT_UNICAST (1 << 0)
+
+enum umdns_socket_type {
+	SOCK_MC_IPV4 = 0,
+	SOCK_UC_IPV4 = SOCKTYPE_BIT_UNICAST,
+	SOCK_MC_IPV6 = SOCKTYPE_BIT_IPV6,
+	SOCK_UC_IPV6 = SOCKTYPE_BIT_IPV6 | SOCKTYPE_BIT_UNICAST,
+};
+
+struct interface_addr_list {
+	union {
+		struct {
+			struct in_addr addr, mask;
+		} *v4;
+		struct {
+			struct in6_addr addr, mask;
+		} *v6;
+	};
+	int n_addr;
+};
+
 struct interface {
 	struct vlist_node node;
 	struct interface *peer;
 
 	const char *name;
-	char *id;
-	struct uloop_fd fd;
-	struct uloop_timeout reconnect;
-
-	int v6;
-	int multicast;
+	enum umdns_socket_type type;
 	int ifindex;
 
-	struct in_addr v4_addr;
-	struct in_addr v4_netmask;
-	struct in6_addr v6_addr;
-	struct in6_addr v6_netmask;
-	char v4_addrs[16];
-	char v6_addrs[64];
+	struct interface_addr_list addrs;
 
 	struct uloop_timeout announce_timer;
 	int announce_state;
-
-	char *mcast_addr;
 };
 
+static inline bool interface_multicast(struct interface *iface)
+{
+	return !(iface->type & SOCKTYPE_BIT_UNICAST);
+}
+
+static inline bool interface_ipv6(struct interface *iface)
+{
+	return !!(iface->type & SOCKTYPE_BIT_IPV6);
+}
+
 int interface_add(const char *name);
+int interface_init(void);
 void interface_shutdown(void);
 int interface_send_packet(struct interface *iface, struct sockaddr *to, struct iovec *iov, int iov_len);
-struct interface* interface_get(const char *name, int v6, int multicast);
+struct interface* interface_get(const char *name, enum umdns_socket_type type);
 
 #endif

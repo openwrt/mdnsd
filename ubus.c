@@ -221,8 +221,8 @@ umdns_query(struct ubus_context *ctx, struct ubus_object *obj,
 	if ((c = tb[QUERY_TYPE]))
 		type = blobmsg_get_u32(c);
 
-	struct interface *iface_v4 = interface_get(ifname, 0, 1);
-	struct interface *iface_v6 = interface_get(ifname, 1, 1);
+	struct interface *iface_v4 = interface_get(ifname, SOCK_MC_IPV4);
+	struct interface *iface_v6 = interface_get(ifname, SOCK_MC_IPV6);
 
 	if (!iface_v4 && !iface_v6)
 		return UBUS_STATUS_NOT_FOUND;

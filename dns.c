@@ -354,8 +354,8 @@ parse_question(struct interface *iface, struct sockaddr *from, char *name, struc
 	/* TODO: Multicast if more than one quarter of TTL has passed */
 	if (q->class & CLASS_UNICAST) {
 		to = from;
-		if (iface->multicast)
-			iface = iface->peer;
+		if (interface_multicast(iface))
+			iface = interface_get(iface->name, iface->type | SOCKTYPE_BIT_UNICAST);
 	}
 
 	DBG(1, "Q -> %s %s\n", dns_type_string(q->type), name);
@@ -412,7 +412,7 @@ dns_handle_packet(struct interface *iface, struct sockaddr *from, uint16_t port,
 		return;
 	}
 
-	if (h->questions && !iface->multicast && port != MCAST_PORT)
+	if (h->questions && !interface_multicast(iface) && port != MCAST_PORT)
 		/* silently drop unicast questions that dont originate from port 5353 */
 		return;
 

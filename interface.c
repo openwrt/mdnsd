@@ -41,11 +41,18 @@
 #include "announce.h"
 #include "service.h"
 
+static struct uloop_fd ufd[] = {
+	[SOCK_UC_IPV4] = { .fd = -1 },
+	[SOCK_UC_IPV6] = { .fd = -1 },
+	[SOCK_MC_IPV4] = { .fd = -1 },
+	[SOCK_MC_IPV6] = { .fd = -1 },
+};
+
 static int
 interface_send_packet4(struct interface *iface, struct sockaddr_in *to, struct iovec *iov, int iov_len)
 {
 	static size_t cmsg_data[( CMSG_SPACE(sizeof(struct in_pktinfo)) / sizeof(size_t)) + 1];
-	static struct sockaddr_in a;
+	static struct sockaddr_in a = {};
 	static struct msghdr m = {
 		.msg_name = (struct sockaddr *) &a,
 		.msg_namelen = sizeof(a),
@@ -54,7 +61,7 @@ interface_send_packet4(struct interface *iface, struct sockaddr_in *to, struct i
 	};
 	struct in_pktinfo *pkti;
 	struct cmsghdr *cmsg;
-	int fd = iface->fd.fd;
+	int fd;
 
 	a.sin_family = AF_INET;
 	a.sin_port = htons(MCAST_PORT);
@@ -70,7 +77,8 @@ interface_send_packet4(struct interface *iface, struct sockaddr_in *to, struct i
 	pkti = (struct in_pktinfo*) CMSG_DATA(cmsg);
 	pkti->ipi_ifindex = iface->ifindex;
 
-	if (iface->multicast) {
+	fd = ufd[iface->type].fd;
+	if (interface_multicast(iface)) {
 		a.sin_addr.s_addr = inet_addr(MCAST_ADDR);
 		if (to)
 			fprintf(stderr, "Ignoring IPv4 address for multicast interface\n");
@@ -85,7 +93,7 @@ static int
 interface_send_packet6(struct interface *iface, struct sockaddr_in6 *to, struct iovec *iov, int iov_len)
 {
 	static size_t cmsg_data[( CMSG_SPACE(sizeof(struct in6_pktinfo)) / sizeof(size_t)) + 1];
-	static struct sockaddr_in6 a;
+	static struct sockaddr_in6 a = {};
 	static struct msghdr m = {
 		.msg_name = (struct sockaddr *) &a,
 		.msg_namelen = sizeof(a),
@@ -94,10 +102,11 @@ interface_send_packet6(struct interface *iface, struct sockaddr_in6 *to, struct 
 	};
 	struct in6_pktinfo *pkti;
 	struct cmsghdr *cmsg;
-	int fd = iface->fd.fd;
+	int fd;
 
 	a.sin6_family = AF_INET6;
 	a.sin6_port = htons(MCAST_PORT);
+	a.sin6_scope_id = iface->ifindex;
 	m.msg_iov = iov;
 	m.msg_iovlen = iov_len;
 
@@ -110,7 +119,8 @@ interface_send_packet6(struct interface *iface, struct sockaddr_in6 *to, struct 
 	pkti = (struct in6_pktinfo*) CMSG_DATA(cmsg);
 	pkti->ipi6_ifindex = iface->ifindex;
 
-	if (iface->multicast) {
+	fd = ufd[iface->type].fd;
+	if (interface_multicast(iface)) {
 		inet_pton(AF_INET6, MCAST_ADDR6, &a.sin6_addr);
 		if (to)
 			fprintf(stderr, "Ignoring IPv6 address for multicast interface\n");
@@ -124,38 +134,38 @@ interface_send_packet6(struct interface *iface, struct sockaddr_in6 *to, struct 
 int
 interface_send_packet(struct interface *iface, struct sockaddr *to, struct iovec *iov, int iov_len)
 {
-	if (!iface->multicast && !to) {
+	if (!interface_multicast(iface) && !to) {
 		fprintf(stderr, "No IP address specified for unicast interface\n");
 		errno = EINVAL;
 		return -1;
 	}
 
 	if (debug > 1) {
-		fprintf(stderr, "TX ipv%d: %s\n", iface->v6 * 2 + 4, iface->name);
-		fprintf(stderr, "  multicast: %d\n", iface->multicast);
+		fprintf(stderr, "TX ipv%d: %s\n", interface_ipv6(iface) ? 6 : 4, iface->name);
+		fprintf(stderr, "  multicast: %d\n", interface_multicast(iface));
 	}
 
-	if (iface->v6)
+	if (interface_ipv6(iface))
 		return interface_send_packet6(iface, (struct sockaddr_in6 *)to, iov, iov_len);
 
 	return interface_send_packet4(iface, (struct sockaddr_in *)to, iov, iov_len);
 }
 
-static void interface_close(struct interface *iface)
+static struct interface *interface_lookup(unsigned int ifindex, enum umdns_socket_type type)
 {
-	if (iface->fd.fd < 0)
-		return;
+	struct interface *iface;
 
-	announce_free(iface);
-	uloop_fd_delete(&iface->fd);
-	close(iface->fd.fd);
-	iface->fd.fd = -1;
+	vlist_for_each_element(&interfaces, iface, node)
+		if (iface->ifindex == ifindex && iface->type == type)
+			return iface;
+
+	return NULL;
 }
 
 static void interface_free(struct interface *iface)
 {
-	uloop_timeout_cancel(&iface->reconnect);
-	interface_close(iface);
+	announce_free(iface);
+	free(iface->addrs.v4);
 	free(iface);
 }
 
@@ -181,7 +191,8 @@ interface_valid_src(void *ip1, void *mask, void *ip2, int len)
 static void
 read_socket4(struct uloop_fd *u, unsigned int events)
 {
-	struct interface *iface = container_of(u, struct interface, fd);
+	enum umdns_socket_type type = (enum umdns_socket_type)(u - ufd);
+	struct interface *iface;
 	static uint8_t buffer[8 * 1024];
 	struct iovec iov[1];
 	char cmsg[CMSG_SPACE(sizeof(struct in_pktinfo)) + CMSG_SPACE(sizeof(int)) + 1];
@@ -189,13 +200,13 @@ read_socket4(struct uloop_fd *u, unsigned int events)
 	struct msghdr msg;
 	socklen_t len;
 	struct sockaddr_in from;
-	int flags = 0, ifindex = -1;
+	int flags = 0;
 	uint8_t ttl = 0;
 	struct in_pktinfo *inp = NULL;
+	bool valid_src = false;
 
 	if (u->eof) {
-		interface_close(iface);
-		uloop_timeout_set(&iface->reconnect, 1000);
+		uloop_end();
 		return;
 	}
 
@@ -236,11 +247,15 @@ read_socket4(struct uloop_fd *u, unsigned int events)
 	if (!inp)
 		return;
 
+	iface = interface_lookup(inp->ipi_ifindex, type);
+	if (!iface)
+		return;
+
 	if (debug > 1) {
 		char buf[256];
 
 		fprintf(stderr, "RX ipv4: %s\n", iface->name);
-		fprintf(stderr, "  multicast: %d\n", iface->multicast);
+		fprintf(stderr, "  multicast: %d\n", interface_multicast(iface));
 		inet_ntop(AF_INET, &from.sin_addr, buf, 256);
 		fprintf(stderr, "  src %s:%d\n", buf, ntohs(from.sin_port));
 		inet_ntop(AF_INET, &inp->ipi_spec_dst, buf, 256);
@@ -250,16 +265,26 @@ read_socket4(struct uloop_fd *u, unsigned int events)
 		fprintf(stderr, "  ttl %u\n", ttl);
 	}
 
-	if (inp->ipi_ifindex != iface->ifindex)
-		fprintf(stderr, "invalid iface index %d != %d\n", ifindex, iface->ifindex);
-	else if (!interface_valid_src((void *) &iface->v4_addr, (void *) &iface->v4_netmask, (void *) &from.sin_addr, 4))
-		dns_handle_packet(iface, (struct sockaddr *) &from, ntohs(from.sin_port), buffer, len);
+	for (size_t i = 0; i < iface->addrs.n_addr; i++) {
+		if (!interface_valid_src((void *)&iface->addrs.v4[i].addr,
+					 (void *)&iface->addrs.v4[i].mask,
+					 (void *) &from.sin_addr, 4)) {
+			valid_src = true;
+			break;
+		}
+	}
+
+	if (!valid_src)
+		return;
+
+	dns_handle_packet(iface, (struct sockaddr *) &from, ntohs(from.sin_port), buffer, len);
 }
 
 static void
 read_socket6(struct uloop_fd *u, unsigned int events)
 {
-	struct interface *iface = container_of(u, struct interface, fd);
+	enum umdns_socket_type type = (enum umdns_socket_type)(u - ufd);
+	struct interface *iface;
 	static uint8_t buffer[8 * 1024];
 	struct iovec iov[1];
 	char cmsg6[CMSG_SPACE(sizeof(struct in6_pktinfo)) + CMSG_SPACE(sizeof(int)) + 1];
@@ -267,13 +292,13 @@ read_socket6(struct uloop_fd *u, unsigned int events)
 	struct msghdr msg;
 	socklen_t len;
 	struct sockaddr_in6 from;
-	int flags = 0, ifindex = -1;
+	int flags = 0;
 	int ttl = 0;
 	struct in6_pktinfo *inp = NULL;
+	bool valid_src = false;
 
 	if (u->eof) {
-		interface_close(iface);
-		uloop_timeout_set(&iface->reconnect, 1000);
+		uloop_end();
 		return;
 	}
 
@@ -314,11 +339,15 @@ read_socket6(struct uloop_fd *u, unsigned int events)
 	if (!inp)
 		return;
 
+	iface = interface_lookup(inp->ipi6_ifindex, type);
+	if (!iface)
+		return;
+
 	if (debug > 1) {
 		char buf[256];
 
 		fprintf(stderr, "RX ipv6: %s\n", iface->name);
-		fprintf(stderr, "  multicast: %d\n", iface->multicast);
+		fprintf(stderr, "  multicast: %d\n", interface_multicast(iface));
 		inet_ntop(AF_INET6, &from.sin6_addr, buf, 256);
 		fprintf(stderr, "  src %s:%d\n", buf, ntohs(from.sin6_port));
 		inet_ntop(AF_INET6, &inp->ipi6_addr, buf, 256);
@@ -326,32 +355,36 @@ read_socket6(struct uloop_fd *u, unsigned int events)
 		fprintf(stderr, "  ttl %u\n", ttl);
 	}
 
-	if (inp->ipi6_ifindex != iface->ifindex)
-		fprintf(stderr, "invalid iface index %d != %d\n", ifindex, iface->ifindex);
-	else if (!interface_valid_src((void *) &iface->v6_addr, (void *) &iface->v6_netmask, (void *) &from.sin6_addr, 16))
-		dns_handle_packet(iface, (struct sockaddr *) &from, ntohs(from.sin6_port), buffer, len);
+	for (size_t i = 0; i < iface->addrs.n_addr; i++) {
+		if (!interface_valid_src((void *)&iface->addrs.v6[i].addr,
+					 (void *)&iface->addrs.v6[i].mask,
+					 (void *)&from.sin6_addr, 6)) {
+			valid_src = true;
+			break;
+		}
+	}
+
+	if (!valid_src)
+		return;
+
+	dns_handle_packet(iface, (struct sockaddr *) &from, ntohs(from.sin6_port), buffer, len);
 }
 
 static int
 interface_mcast_setup4(struct interface *iface)
 {
 	struct ip_mreqn mreq;
-	uint8_t ttl = 255;
-	int no = 0;
-	struct sockaddr_in sa = { 0 };
-	int fd = iface->fd.fd;
+	struct sockaddr_in sa = {};
+	int fd = ufd[SOCK_MC_IPV4].fd;
 
 	sa.sin_family = AF_INET;
 	sa.sin_port = htons(MCAST_PORT);
 	inet_pton(AF_INET, MCAST_ADDR, &sa.sin_addr);
 
 	memset(&mreq, 0, sizeof(mreq));
-	mreq.imr_address.s_addr = iface->v4_addr.s_addr;
 	mreq.imr_multiaddr = sa.sin_addr;
 	mreq.imr_ifindex = iface->ifindex;
-
-	if (setsockopt(fd, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl)) < 0)
-		fprintf(stderr, "ioctl failed: IP_MULTICAST_TTL\n");
+	mreq.imr_address.s_addr = iface->addrs.v4[0].addr.s_addr;
 
 	/* Some network drivers have issues with dropping membership of
 	 * mcast groups when the iface is down, but don't allow rejoining
@@ -359,28 +392,17 @@ interface_mcast_setup4(struct interface *iface)
 	 * -- this was copied from avahi --
 	 */
 	setsockopt(fd, IPPROTO_IP, IP_DROP_MEMBERSHIP, &mreq, sizeof(mreq));
-
-	if (setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) < 0) {
-		fprintf(stderr, "failed to join multicast group: %m\n");
-		close(fd);
-		iface->fd.fd = -1;
-		return -1;
-	}
-
-	if (setsockopt(fd, IPPROTO_IP, IP_MULTICAST_LOOP, &no, sizeof(no)) < 0)
-		fprintf(stderr, "ioctl failed: IP_MULTICAST_LOOP\n");
+	setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq));
 
 	return 0;
 }
 
 static int
-interface_socket_setup6(struct interface *iface)
+interface_mcast_setup6(struct interface *iface)
 {
 	struct ipv6_mreq mreq;
-	int ttl = 255;
-	int no = 0;
-	struct sockaddr_in6 sa = { 0 };
-	int fd = iface->fd.fd;
+	struct sockaddr_in6 sa = {};
+	int fd = ufd[SOCK_MC_IPV6].fd;
 
 	sa.sin6_family = AF_INET6;
 	sa.sin6_port = htons(MCAST_PORT);
@@ -390,255 +412,236 @@ interface_socket_setup6(struct interface *iface)
 	mreq.ipv6mr_multiaddr = sa.sin6_addr;
 	mreq.ipv6mr_interface = iface->ifindex;
 
-	if (setsockopt(fd, IPPROTO_IPV6, IPV6_MULTICAST_HOPS, &ttl, sizeof(ttl)) < 0)
-		fprintf(stderr, "ioctl failed: IPV6_MULTICAST_HOPS\n");
-
 	setsockopt(fd, IPPROTO_IPV6, IPV6_LEAVE_GROUP, &mreq, sizeof(mreq));
-	if (setsockopt(fd, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) < 0) {
-		fprintf(stderr, "failed to join multicast group: %m\n");
-		close(fd);
-		iface->fd.fd = -1;
-		return -1;
-	}
-
-	if (setsockopt(fd, IPPROTO_IPV6, IPV6_MULTICAST_LOOP, &no, sizeof(no)) < 0)
-		fprintf(stderr, "ioctl failed: IPV6_MULTICAST_LOOP\n");
+	setsockopt(fd, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP, &mreq, sizeof(mreq));
 
 	return 0;
 }
 
-static void
-reconnect_socket4(struct uloop_timeout *timeout)
-{
-	struct interface *iface = container_of(timeout, struct interface, reconnect);
-	int ttl = 255;
-	int yes = 1;
-
-	iface->fd.fd = usock(USOCK_UDP | USOCK_SERVER | USOCK_NONBLOCK | USOCK_IPV4ONLY,
-		(iface->multicast) ? (iface->mcast_addr) : (iface->v4_addrs), "5353");
-	if (iface->fd.fd < 0) {
-		fprintf(stderr, "failed to add listener %s: %m\n", iface->mcast_addr);
-		goto retry;
-	}
-
-	if (setsockopt(iface->fd.fd, SOL_SOCKET, SO_BINDTODEVICE, iface->name, strlen(iface->name) < 0))
-		fprintf(stderr, "ioctl failed: SO_BINDTODEVICE\n");
-
-	if (setsockopt(iface->fd.fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) < 0)
-		fprintf(stderr, "ioctl failed: SO_REUSEADDR\n");
-
-	if (setsockopt(iface->fd.fd, IPPROTO_IP, IP_TTL, &ttl, sizeof(ttl)) < 0)
-		fprintf(stderr, "ioctl failed: IP_TTL\n");
-
-	if (setsockopt(iface->fd.fd, IPPROTO_IP, IP_RECVTTL, &yes, sizeof(yes)) < 0)
-		fprintf(stderr, "ioctl failed: IP_RECVTTL\n");
-
-	if (setsockopt(iface->fd.fd, IPPROTO_IP, IP_PKTINFO, &yes, sizeof(yes)) < 0)
-		fprintf(stderr, "ioctl failed: IP_PKTINFO\n");
-
-	if (iface->multicast && interface_mcast_setup4(iface)) {
-		iface->fd.fd = -1;
-		goto retry;
-	}
-
-	uloop_fd_add(&iface->fd, ULOOP_READ);
-	if (iface->multicast) {
-		dns_send_question(iface, NULL, C_DNS_SD, TYPE_PTR, 0);
-		announce_init(iface);
-	}
-
-	return;
-
-retry:
-	uloop_timeout_set(timeout, 1000);
-}
-
-static void
-reconnect_socket6(struct uloop_timeout *timeout)
-{
-	struct interface *iface = container_of(timeout, struct interface, reconnect);
-	char mcast_addr[128];
-	int ttl = 255;
-	int yes = 1;
-
-	snprintf(mcast_addr, sizeof(mcast_addr), "%s%%%s", (iface->multicast) ? (iface->mcast_addr) : (iface->v6_addrs), iface->name);
-	iface->fd.fd = usock(USOCK_UDP | USOCK_SERVER | USOCK_NONBLOCK | USOCK_IPV6ONLY, mcast_addr, "5353");
-	if (iface->fd.fd < 0) {
-		fprintf(stderr, "failed to add listener %s: %m\n", mcast_addr);
-		goto retry;
-	}
-
-	if (setsockopt(iface->fd.fd, SOL_SOCKET, SO_BINDTODEVICE, iface->name, strlen(iface->name) < 0))
-		fprintf(stderr, "ioctl failed: SO_BINDTODEVICE\n");
-
-	if (setsockopt(iface->fd.fd, IPPROTO_IPV6, IPV6_UNICAST_HOPS, &ttl, sizeof(ttl)) < 0)
-		fprintf(stderr, "ioctl failed: IPV6_UNICAST_HOPS\n");
-
-	if (setsockopt(iface->fd.fd, IPPROTO_IPV6, IPV6_RECVPKTINFO, &yes, sizeof(yes)) < 0)
-		fprintf(stderr, "ioctl failed: IPV6_RECVPKTINFO\n");
-
-	if (setsockopt(iface->fd.fd, IPPROTO_IPV6, IPV6_RECVHOPLIMIT, &yes, sizeof(yes)) < 0)
-		fprintf(stderr, "ioctl failed: IPV6_RECVHOPLIMIT\n");
-
-	if (setsockopt(iface->fd.fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) < 0)
-		fprintf(stderr, "ioctl failed: SO_REUSEADDR\n");
-
-	if (iface->multicast && interface_socket_setup6(iface)) {
-		iface->fd.fd = -1;
-		goto retry;
-	}
-
-	uloop_fd_add(&iface->fd, ULOOP_READ);
-
-	if (iface->multicast) {
-		dns_send_question(iface, NULL, C_DNS_SD, TYPE_PTR, 0);
-		announce_init(iface);
-	}
-
-	return;
-
-retry:
-	uloop_timeout_set(timeout, 1000);
-}
-
-
 static void interface_start(struct interface *iface)
 {
-	if (iface->v6) {
-		iface->fd.cb = read_socket6;
-		iface->reconnect.cb = reconnect_socket6;
-	} else {
-		iface->fd.cb = read_socket4;
-		iface->reconnect.cb = reconnect_socket4;
-	}
-	uloop_timeout_set(&iface->reconnect, 1000);
+	if (iface->type & SOCKTYPE_BIT_UNICAST)
+		return;
+
+	if (iface->type & SOCKTYPE_BIT_IPV6)
+		interface_mcast_setup6(iface);
+	else
+		interface_mcast_setup4(iface);
+
+	dns_send_question(iface, NULL, C_DNS_SD, TYPE_PTR, 0);
+	announce_init(iface);
+}
+
+static bool
+iface_equal(struct interface *if_old, struct interface *if_new)
+{
+	size_t addr_size;
+
+	if (if_old->ifindex != if_new->ifindex ||
+	    if_old->addrs.n_addr != if_new->addrs.n_addr)
+		return false;
+
+	if (if_old->type & SOCKTYPE_BIT_IPV6)
+		addr_size = sizeof(*if_old->addrs.v6);
+	else
+		addr_size = sizeof(*if_old->addrs.v4);
+	addr_size *= if_old->addrs.n_addr;
+	if (memcmp(if_old->addrs.v4, if_new->addrs.v4, addr_size) != 0)
+		return false;
+
+	return true;
 }
 
 static void
 iface_update_cb(struct vlist_tree *tree, struct vlist_node *node_new,
 		struct vlist_node *node_old)
 {
-	struct interface *iface;
+	struct interface *if_old = container_of_safe(node_old, struct interface, node);
+	struct interface *if_new = container_of_safe(node_new, struct interface, node);
 
-	if (node_old) {
-		iface = container_of(node_old, struct interface, node);
-		cache_cleanup(iface);
-		interface_free(iface);
+	if (if_old && if_new) {
+		if (!iface_equal(if_old, if_new))
+			cache_cleanup(if_old);
+		free(if_old->addrs.v4);
+		if_old->addrs = if_new->addrs;
+		free(if_new);
+		return;
 	}
 
-	if (node_new) {
-		iface = container_of(node_new, struct interface, node);
-		interface_start(iface);
-	}
+	if (if_old)
+		interface_free(if_old);
+
+	if (if_new)
+		interface_start(if_new);
 }
 
-static struct interface* _interface_add(const char *name, int multicast, int v6)
+static int interface_init_socket(enum umdns_socket_type type)
 {
-	struct interface *iface;
-	char *name_buf;
-	char *id_buf;
+	struct sockaddr_in6 local6 = {
+		.sin6_family = AF_INET6
+	};
+	struct sockaddr_in local = {
+		.sin_family = AF_INET
+	};
+	uint8_t ttl = 255;
+	int ittl = 255;
+	int yes = 1;
+	int no = 0;
+	int fd;
+	int af = (type & SOCKTYPE_BIT_IPV6) ? AF_INET6 : AF_INET;
 
-	iface = calloc_a(sizeof(*iface),
-		&name_buf, strlen(name) + 1,
-		&id_buf, strlen(name) + 5);
+	if (ufd[type].fd >= 0)
+		return 0;
 
-	sprintf(id_buf, "%d_%d_%s", multicast, v6, name);
-	iface->name = strcpy(name_buf, name);
-	iface->id = id_buf;
-	iface->ifindex = if_nametoindex(name);
-	iface->fd.fd = -1;
-	iface->multicast = multicast;
-	iface->v6 = v6;
-	if (v6)
-		iface->mcast_addr = MCAST_ADDR6;
-	else
-		iface->mcast_addr = MCAST_ADDR;
+	ufd[type].fd = fd = socket(af, SOCK_DGRAM, 0);
+	if (fd < 0)
+		return -1;
 
-	if (iface->ifindex <= 0)
-		goto error;
+	setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+#ifdef SO_REUSEPORT
+	setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &yes, sizeof(yes));
+#endif
 
-	vlist_add(&interfaces, &iface->node, iface->id);
-	return iface;
+	switch (type) {
+	case SOCK_UC_IPV4:
+	case SOCK_UC_IPV6:
+		break;
+	case SOCK_MC_IPV4:
+		setsockopt(fd, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl));
+		setsockopt(fd, IPPROTO_IP, IP_TTL, &ittl, sizeof(ittl));
+		setsockopt(fd, IPPROTO_IP, IP_MULTICAST_LOOP, &no, sizeof(no));
+		local.sin_port = htons(MCAST_PORT);
+		break;
+	case SOCK_MC_IPV6:
+		setsockopt(fd, IPPROTO_IPV6, IPV6_MULTICAST_HOPS, &ttl, sizeof(ttl));
+		setsockopt(fd, IPPROTO_IPV6, IPV6_UNICAST_HOPS, &ttl, sizeof(ttl));
+		setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &yes, sizeof(yes));
+		setsockopt(fd, IPPROTO_IPV6, IPV6_MULTICAST_LOOP, &no, sizeof(no));
+		local6.sin6_port = htons(MCAST_PORT);
+		break;
+	}
+
+	if (type & SOCKTYPE_BIT_IPV6) {
+		ufd[type].cb = read_socket6;
+		if (bind(fd, (struct sockaddr *)&local6, sizeof(local6)) < 0)
+			goto error;
+
+		setsockopt(fd, IPPROTO_IPV6, IPV6_RECVPKTINFO, &yes, sizeof(yes));
+		setsockopt(fd, IPPROTO_IPV6, IPV6_RECVHOPLIMIT, &yes, sizeof(yes));
+	} else {
+		ufd[type].cb = read_socket4;
+		if (bind(fd, (struct sockaddr *)&local, sizeof(local)) < 0)
+			goto error;
+
+		setsockopt(fd, IPPROTO_IP, IP_PKTINFO, &yes, sizeof(yes));
+		setsockopt(fd, IPPROTO_IP, IP_RECVTTL, &yes, sizeof(yes));
+	}
+
+	uloop_fd_add(&ufd[type], ULOOP_READ);
+
+	return 0;
 
 error:
-	free(iface);
-	return NULL;
+	close(ufd[type].fd);
+	return -1;
+}
+
+static void
+__interface_add(const char *name, enum umdns_socket_type type,
+				struct interface_addr_list *list)
+{
+	struct interface *iface;
+	unsigned int ifindex;
+	char *id_buf;
+
+	if (interface_init_socket(type))
+		goto error;
+
+	ifindex = if_nametoindex(name);
+	if (!ifindex)
+		goto error;
+
+	iface = calloc_a(sizeof(*iface),
+		&id_buf, strlen(name) + 3);
+
+	sprintf(id_buf, "%d_%s", type, name);
+	iface->name = id_buf + 2;
+	iface->ifindex = ifindex;
+	iface->type = type;
+	iface->addrs = *list;
+
+	vlist_add(&interfaces, &iface->node, id_buf);
+	return;
+
+error:
+	free(list->v4);
 }
 
 int interface_add(const char *name)
 {
-	struct interface *v4 = NULL, *v6 = NULL, *unicast;
 	struct ifaddrs *ifap, *ifa;
+	struct interface_addr_list addr4 = {}, addr6 = {};
 
 	getifaddrs(&ifap);
 
 	for (ifa = ifap; ifa; ifa = ifa->ifa_next) {
 		if (strcmp(ifa->ifa_name, name))
 			continue;
-		if (ifa->ifa_addr->sa_family == AF_INET && !v4) {
-			struct sockaddr_in *sa;
+		if (ifa->ifa_addr->sa_family == AF_INET) {
+			struct sockaddr_in *sin;
 
 			if (cfg_proto && (cfg_proto != 4))
 				continue;
 
-			unicast = _interface_add(name, 0, 0);
-			if (!unicast)
-				continue;
-			v4 = _interface_add(name, 1, 0);
-			if (!v4)
-				continue;
-
-			sa = (struct sockaddr_in *) ifa->ifa_addr;
-			memcpy(&v4->v4_addr, &sa->sin_addr, sizeof(v4->v4_addr));
-			memcpy(&unicast->v4_addr, &sa->sin_addr, sizeof(unicast->v4_addr));
-
-			inet_ntop(AF_INET, &sa->sin_addr, v4->v4_addrs, sizeof(v4->v4_addrs));
-			inet_ntop(AF_INET, &sa->sin_addr, unicast->v4_addrs, sizeof(unicast->v4_addrs));
-
-			sa = (struct sockaddr_in *) ifa->ifa_netmask;
-			memcpy(&unicast->v4_netmask, &sa->sin_addr, sizeof(unicast->v4_netmask));
-			memcpy(&v4->v4_netmask, &sa->sin_addr, sizeof(v4->v4_netmask));
-
-			v4->peer = unicast;
-			unicast->peer = v4;
+			addr4.v4 = realloc(addr4.v4, (addr4.n_addr + 1) * sizeof(*addr4.v4));
+			sin = (struct sockaddr_in *) ifa->ifa_addr;
+			addr4.v4[addr4.n_addr].addr = sin->sin_addr;
+			sin = (struct sockaddr_in *) ifa->ifa_netmask;
+			addr4.v4[addr4.n_addr++].mask = sin->sin_addr;
 		}
 
-		if (ifa->ifa_addr->sa_family == AF_INET6 && !v6) {
+		if (ifa->ifa_addr->sa_family == AF_INET6) {
 			uint8_t ll_prefix[] = {0xfe, 0x80 };
-			struct sockaddr_in6 *sa6;
+			struct sockaddr_in6 *sin6;
 
 			if (cfg_proto && (cfg_proto != 6))
 				continue;
 
-			sa6 = (struct sockaddr_in6 *) ifa->ifa_addr;
-			if (memcmp(&sa6->sin6_addr, &ll_prefix, 2))
+			sin6 = (struct sockaddr_in6 *) ifa->ifa_addr;
+			if (memcmp(&sin6->sin6_addr, &ll_prefix, 2))
 				continue;
 
-			unicast = _interface_add(name, 0, 1);
-			if (!unicast)
-				continue;
-			v6 = _interface_add(name, 1, 1);
-			if (!v6)
-				continue;
-
-			memcpy(&v6->v6_addr, &sa6->sin6_addr, sizeof(v6->v6_addr));
-			memcpy(&unicast->v6_addr, &sa6->sin6_addr, sizeof(unicast->v6_addr));
-
-			inet_ntop(AF_INET6, &sa6->sin6_addr, v6->v6_addrs, sizeof(v6->v6_addrs));
-			inet_ntop(AF_INET6, &sa6->sin6_addr, unicast->v6_addrs, sizeof(unicast->v6_addrs));
-
-			sa6 = (struct sockaddr_in6 *) ifa->ifa_netmask;
-			memcpy(&v6->v6_netmask, &sa6->sin6_addr, sizeof(v6->v6_netmask));
-			memcpy(&unicast->v6_netmask, &sa6->sin6_addr, sizeof(unicast->v6_netmask));
-
-			v6->peer = unicast;
-			unicast->peer = v6;
+			addr6.v6 = realloc(addr6.v6, (addr6.n_addr + 1) * sizeof(*addr6.v6));
+			sin6 = (struct sockaddr_in6 *) ifa->ifa_addr;
+			addr6.v6[addr6.n_addr].addr = sin6->sin6_addr;
+			sin6 = (struct sockaddr_in6 *) ifa->ifa_netmask;
+			addr6.v6[addr6.n_addr++].mask = sin6->sin6_addr;
 		}
 	}
 
 	freeifaddrs(ifap);
 
-	return !v4 && !v6;
+	if (addr4.n_addr) {
+		size_t addr_size = addr4.n_addr * sizeof(*addr4.v4);
+		void *addr_dup = malloc(addr_size);
+
+		memcpy(addr_dup, addr4.v4, addr_size);
+		__interface_add(name, SOCK_UC_IPV4, &addr4);
+		addr4.v4 = addr_dup;
+		__interface_add(name, SOCK_MC_IPV4, &addr4);
+	}
+
+	if (addr6.n_addr) {
+		size_t addr_size = addr6.n_addr * sizeof(*addr6.v6);
+		void *addr_dup = malloc(addr_size);
+
+		memcpy(addr_dup, addr6.v6, addr_size);
+		__interface_add(name, SOCK_UC_IPV6, &addr6);
+		addr6.v6 = addr_dup;
+		__interface_add(name, SOCK_MC_IPV6, &addr6);
+	}
+
+	return !addr4.n_addr && !addr6.n_addr;
 }
 
 void interface_shutdown(void)
@@ -646,19 +649,22 @@ void interface_shutdown(void)
 	struct interface *iface;
 
 	vlist_for_each_element(&interfaces, iface, node)
-		if (iface->fd.fd > 0 && iface->multicast) {
+		if (interface_multicast(iface)) {
 			dns_reply_a(iface, NULL, 0);
 			service_announce_services(iface, NULL, 0);
 		}
-	vlist_for_each_element(&interfaces, iface, node)
-		interface_close(iface);
+
+	for (size_t i = 0; i < ARRAY_SIZE(ufd); i++) {
+		uloop_fd_delete(&ufd[i]);
+		close(ufd[i].fd);
+		ufd[i].fd = -1;
+	}
 }
 
-struct interface*
-interface_get(const char *name, int v6, int multicast)
+struct interface *interface_get(const char *name, enum umdns_socket_type type)
 {
 	char id_buf[32];
-	snprintf(id_buf, sizeof(id_buf), "%d_%d_%s", multicast, v6, name);
+	snprintf(id_buf, sizeof(id_buf), "%d_%s", type, name);
 	struct interface *iface = vlist_find(&interfaces, id_buf, iface, node);
 	return iface;
 }
