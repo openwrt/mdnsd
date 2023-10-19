@@ -58,7 +58,8 @@ void cache_answer(struct interface *iface, struct sockaddr *from, uint8_t *base,
 		  int blen, char *name, struct dns_answer *a, uint8_t *rdata,
 		  int flush);
 int cache_host_is_known(char *record);
-void cache_dump_records(struct blob_buf *buf, const char *name, int array);
+void cache_dump_records(struct blob_buf *buf, const char *name, int array,
+			const char **hostname);
 void cache_dump_recursive(struct blob_buf *b, const char *name, uint16_t type, struct interface *iface);
 
 #endif

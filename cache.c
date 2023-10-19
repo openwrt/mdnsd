@@ -382,7 +382,8 @@ void cache_answer(struct interface *iface, struct sockaddr *from, uint8_t *base,
 }
 
 void
-cache_dump_records(struct blob_buf *buf, const char *name, int array)
+cache_dump_records(struct blob_buf *buf, const char *name, int array,
+		   const char **hostname)
 {
 	struct cache_record *r, *last, *next;
 	const char *txt;
@@ -454,8 +455,11 @@ cache_dump_records(struct blob_buf *buf, const char *name, int array)
 			break;
 
 		case TYPE_SRV:
-			if (r->rdata)
+			if (r->rdata) {
 				blobmsg_add_string(buf, "host", (char *)r->rdata + sizeof(struct dns_srv_data));
+				if (hostname)
+					*hostname = (char *)r->rdata + sizeof(struct dns_srv_data);
+			}
 			if (r->port)
 				blobmsg_add_u32(buf, "port", r->port);
 			break;

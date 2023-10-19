@@ -83,6 +83,7 @@ umdns_browse(struct ubus_context *ctx, struct ubus_object *obj,
 
 	blob_buf_init(&b, 0);
 	avl_for_each_element(&services, s, avl) {
+		const char *hostname = buffer;
 		char *local;
 
 		snprintf(buffer, MAX_NAME_LEN, "%s", (const char *) s->avl.key);
@@ -103,9 +104,9 @@ umdns_browse(struct ubus_context *ctx, struct ubus_object *obj,
 		c2 = blobmsg_open_table(&b, buffer);
 		strncat(buffer, ".local", MAX_NAME_LEN);
 		blobmsg_add_string(&b, "iface", s->iface->name);
+		cache_dump_records(&b, s->entry, array, &hostname);
 		if (address)
-			cache_dump_records(&b, buffer, array);
-		cache_dump_records(&b, s->entry, array);
+			cache_dump_records(&b, hostname, array, NULL);
 		blobmsg_close_table(&b, c2);
 		q = avl_next_element(s, avl);
 		if (!q || avl_is_last(&services, &s->avl) || strcmp(s->avl.key, q->avl.key)) {
@@ -134,7 +135,7 @@ umdns_hosts(struct ubus_context *ctx, struct ubus_object *obj,
 		/* Query each domain just once */
 		if (!prev || strcmp(r->record, prev->record)) {
 			c = blobmsg_open_table(&b, r->record);
-			cache_dump_records(&b, r->record, false);
+			cache_dump_records(&b, r->record, false, NULL);
 			blobmsg_close_table(&b, c);
 		}
 		prev = r;
