@@ -18,6 +18,7 @@
 #include <time.h>
 
 #define DBG(level, fmt, ...) do { \
+	umdns_udebug_printf("[%d] [%s:%d] " fmt, level, __func__, __LINE__, ## __VA_ARGS__); \
 	if (debug >= level) \
 		fprintf(stderr, "mdnsd: %s (%d): " fmt, __func__, __LINE__, ## __VA_ARGS__); \
 	} while (0)
@@ -40,5 +41,8 @@ extern char mdns_hostname_local[HOSTNAME_LEN + 6];
 extern void get_hostname(void);
 extern uint32_t rand_time_delta(uint32_t t);
 extern time_t monotonic_time(void);
+
+void umdns_udebug_set_enabled(bool val);
+void umdns_udebug_printf(const char *format, ...);
 
 #endif
