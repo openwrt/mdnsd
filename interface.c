@@ -464,6 +464,7 @@ iface_update_cb(struct vlist_tree *tree, struct vlist_node *node_new,
 			cache_cleanup(if_old);
 		free(if_old->addrs.v4);
 		if_old->addrs = if_new->addrs;
+		if_old->ifindex = if_new->ifindex;
 		free(if_new);
 		return;
 	}
@@ -669,4 +670,4 @@ struct interface *interface_get(const char *name, enum umdns_socket_type type)
 	return iface;
 }
 
-VLIST_TREE(interfaces, avl_strcmp, iface_update_cb, false, false);
+VLIST_TREE(interfaces, avl_strcmp, iface_update_cb, true, false);
