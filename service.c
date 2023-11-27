@@ -39,6 +39,7 @@ enum {
 	SERVICE_SERVICE,
 	SERVICE_PORT,
 	SERVICE_TXT,
+	SERVICE_HOSTNAME,
 	__SERVICE_MAX,
 };
 
@@ -61,14 +62,20 @@ static const struct blobmsg_policy service_policy[__SERVICE_MAX] = {
 	[SERVICE_SERVICE] = { .name = "service", .type = BLOBMSG_TYPE_STRING },
 	[SERVICE_PORT] = { .name = "port", .type = BLOBMSG_TYPE_INT32 },
 	[SERVICE_TXT] = { .name = "txt", .type = BLOBMSG_TYPE_ARRAY },
+	[SERVICE_HOSTNAME] = { .name = "hostname", .type = BLOBMSG_TYPE_STRING },
 };
 
 static void
 service_update(struct vlist_tree *tree, struct vlist_node *node_new,
 	       struct vlist_node *node_old);
 
+static void
+hostname_update(struct vlist_tree *tree, struct vlist_node *node_new,
+		struct vlist_node *node_old);
+
 static struct blob_buf b;
 static VLIST_TREE(services, avl_strcmp, service_update, false, false);
+VLIST_TREE(hostnames, avl_strcmp, hostname_update, false, false);
 static int service_init_announce;
 
 /**
@@ -211,6 +218,44 @@ service_update(struct vlist_tree *tree, struct vlist_node *node_new,
 }
 
 static void
+hostname_update(struct vlist_tree *tree, struct vlist_node *node_new,
+		struct vlist_node *node_old)
+{
+	struct interface *iface;
+	struct hostname *h;
+
+	if (!node_old) {
+		h = container_of(node_new, struct hostname, node);
+		vlist_for_each_element(&interfaces, iface, node)
+			dns_reply_a(iface, NULL, announce_ttl, h->hostname);
+		return;
+	}
+
+	h = container_of(node_old, struct hostname, node);
+	if (!node_new)
+		vlist_for_each_element(&interfaces, iface, node)
+			dns_reply_a(iface, NULL, 0, h->hostname);
+
+	free(h);
+}
+
+static void
+service_load_hostname(struct blob_attr *b)
+{
+	struct hostname *h;
+	char *hostname, *d_hostname;
+
+	hostname = blobmsg_get_string(b);
+	h = calloc_a(sizeof(*h), &d_hostname, strlen(hostname) + 1);
+	if (!h)
+		return;
+
+	h->hostname = strcpy(d_hostname, hostname);
+
+	vlist_add(&hostnames, &h->node, h->hostname);
+}
+
+static void
 service_load_blob(struct blob_attr *b)
 {
 	struct blob_attr *txt, *_tb[__SERVICE_MAX];
@@ -223,6 +268,12 @@ service_load_blob(struct blob_attr *b)
 
 	blobmsg_parse(service_policy, ARRAY_SIZE(service_policy),
 		_tb, blobmsg_data(b), blobmsg_data_len(b));
+
+	if (_tb[SERVICE_HOSTNAME]) {
+		service_load_hostname(_tb[SERVICE_HOSTNAME]);
+		return;
+	}
+
 	if (!_tb[SERVICE_PORT] || !_tb[SERVICE_SERVICE])
 		return;
 
@@ -298,6 +349,7 @@ service_init_cb(struct ubus_request *req, int type, struct blob_attr *msg)
 	get_hostname();
 
 	vlist_update(&services);
+	vlist_update(&hostnames);
 	service_load("/etc/umdns/*");
 
 	blob_for_each_attr(cur, msg, rem) {
@@ -342,6 +394,7 @@ service_init_cb(struct ubus_request *req, int type, struct blob_attr *msg)
 		}
 	}
 	vlist_flush(&services);
+	vlist_flush(&hostnames);
 }
 
 void

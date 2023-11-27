@@ -183,7 +183,7 @@ dns_send_answer(struct interface *iface, struct sockaddr *to, const char *answer
 }
 
 void
-dns_reply_a(struct interface *iface, struct sockaddr *to, int ttl)
+dns_reply_a(struct interface *iface, struct sockaddr *to, int ttl, const char *hostname)
 {
 	struct ifaddrs *ifap, *ifa;
 	struct sockaddr_in *sa;
@@ -204,9 +204,18 @@ dns_reply_a(struct interface *iface, struct sockaddr *to, int ttl)
 			dns_add_answer(TYPE_AAAA, (uint8_t *) &sa6->sin6_addr, 16, ttl);
 		}
 	}
-	dns_send_answer(iface, to, mdns_hostname_local);
+	dns_send_answer(iface, to, hostname ? hostname : mdns_hostname_local);
 
 	freeifaddrs(ifap);
+}
+
+void
+dns_reply_a_additional(struct interface *iface, struct sockaddr *to, int ttl)
+{
+	struct hostname *h;
+
+	vlist_for_each_element(&hostnames, h, node)
+		dns_reply_a(iface, to, ttl, h->hostname);
 }
 
 static int
@@ -363,14 +372,16 @@ parse_question(struct interface *iface, struct sockaddr *from, char *name, struc
 	switch (q->type) {
 	case TYPE_ANY:
 		if (!strcmp(name, mdns_hostname_local)) {
-			dns_reply_a(iface, to, announce_ttl);
+			dns_reply_a(iface, to, announce_ttl, NULL);
+			dns_reply_a_additional(iface, to, announce_ttl);
 			service_reply(iface, to, NULL, NULL, announce_ttl);
 		}
 		break;
 
 	case TYPE_PTR:
 		if (!strcmp(name, C_DNS_SD)) {
-			dns_reply_a(iface, to, announce_ttl);
+			dns_reply_a(iface, to, announce_ttl, NULL);
+			dns_reply_a_additional(iface, to, announce_ttl);
 			service_announce_services(iface, to, announce_ttl);
 		} else {
 			if (name[0] == '_') {
@@ -394,7 +405,7 @@ parse_question(struct interface *iface, struct sockaddr *from, char *name, struc
 		if (host)
 			*host = '\0';
 		if (!strcmp(umdns_host_label, name))
-			dns_reply_a(iface, to, announce_ttl);
+			dns_reply_a(iface, to, announce_ttl, NULL);
 		break;
 	};
 }

@@ -14,6 +14,13 @@
 #ifndef _SERVICE_H__
 #define _SERVICE_H__
 
+struct hostname {
+	struct vlist_node node;
+
+	const char *hostname;
+};
+extern struct vlist_tree hostnames;
+
 extern void service_init(int announce);
 extern void service_cleanup(void);
 extern void service_reply(struct interface *iface, struct sockaddr *to, const char *instance, const char *service_domain, int ttl);
