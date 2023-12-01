@@ -84,6 +84,7 @@ interface_send_packet4(struct interface *iface, struct sockaddr_in *to, struct i
 			fprintf(stderr, "Ignoring IPv4 address for multicast interface\n");
 	} else {
 		a.sin_addr.s_addr = to->sin_addr.s_addr;
+		a.sin_port = to->sin_port;
 	}
 
 	return sendmsg(fd, &m, 0);
