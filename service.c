@@ -157,7 +157,7 @@ service_reply_single(struct interface *iface, struct sockaddr *to, struct servic
 }
 
 void
-service_reply(struct interface *iface, struct sockaddr *to, const char *instance, const char *service_domain, int ttl)
+service_reply(struct interface *iface, struct sockaddr *to, const char *instance, const char *service_domain, int ttl, int force)
 {
 	struct service *s;
 
@@ -166,7 +166,7 @@ service_reply(struct interface *iface, struct sockaddr *to, const char *instance
 			continue;
 		if (service_domain && strcmp(s->service, service_domain))
 			continue;
-		service_reply_single(iface, to, s, ttl, 0);
+		service_reply_single(iface, to, s, ttl, force);
 	}
 }
 

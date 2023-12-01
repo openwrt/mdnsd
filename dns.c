@@ -349,10 +349,11 @@ static void
 parse_question(struct interface *iface, struct sockaddr *from, char *name, struct dns_question *q)
 {
 	struct sockaddr *to = NULL;
+	int is_unicast = (q->class & CLASS_UNICAST) != 0;
 	char *host;
 
 	/* TODO: Multicast if more than one quarter of TTL has passed */
-	if (q->class & CLASS_UNICAST) {
+	if (is_unicast) {
 		to = from;
 		if (interface_multicast(iface))
 			iface = interface_get(iface->name, iface->type | SOCKTYPE_BIT_UNICAST);
@@ -364,7 +365,7 @@ parse_question(struct interface *iface, struct sockaddr *from, char *name, struc
 	case TYPE_ANY:
 		if (!strcmp(name, mdns_hostname_local)) {
 			dns_reply_a(iface, to, announce_ttl);
-			service_reply(iface, to, NULL, NULL, announce_ttl);
+			service_reply(iface, to, NULL, NULL, announce_ttl, is_unicast);
 		}
 		break;
 
@@ -374,14 +375,14 @@ parse_question(struct interface *iface, struct sockaddr *from, char *name, struc
 			service_announce_services(iface, to, announce_ttl);
 		} else {
 			if (name[0] == '_') {
-				service_reply(iface, to, NULL, name, announce_ttl);
+				service_reply(iface, to, NULL, name, announce_ttl, is_unicast);
 			} else {
 				/* First dot separates instance name from the rest */
 				char *dot = strchr(name, '.');
 
 				if (dot) {
 					*dot = '\0';
-					service_reply(iface, to, name, dot + 1, announce_ttl);
+					service_reply(iface, to, name, dot + 1, announce_ttl, is_unicast);
 					*dot = '.';
 				}
 			}
