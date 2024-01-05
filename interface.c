@@ -164,6 +164,7 @@ static struct interface *interface_lookup(unsigned int ifindex, enum umdns_socke
 
 static void interface_free(struct interface *iface)
 {
+	cache_cleanup(iface);
 	announce_free(iface);
 	free(iface->addrs.v4);
 	free(iface);
