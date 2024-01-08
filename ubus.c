@@ -104,7 +104,8 @@ umdns_browse(struct ubus_context *ctx, struct ubus_object *obj,
 			*local = '\0';
 		c2 = blobmsg_open_table(&b, buffer);
 		strncat(buffer, ".local", MAX_NAME_LEN);
-		blobmsg_add_string(&b, "iface", s->iface->name);
+		if (s->iface)
+			blobmsg_add_string(&b, "iface", s->iface->name);
 		cache_dump_records(&b, s->entry, array, &hostname);
 		if (address)
 			cache_dump_records(&b, hostname, array, NULL);
