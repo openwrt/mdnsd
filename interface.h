@@ -49,7 +49,6 @@ struct interface_addr_list {
 
 struct interface {
 	struct vlist_node node;
-	struct interface *peer;
 
 	const char *name;
 	enum umdns_socket_type type;
