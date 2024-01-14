@@ -460,8 +460,47 @@ cache_dump_records(struct blob_buf *buf, const char *name, int array,
 				if (hostname)
 					*hostname = (char *)r->rdata + sizeof(struct dns_srv_data);
 			}
-			if (r->port)
-				blobmsg_add_u32(buf, "port", r->port);
+
+
+			if (r->record) {
+				const struct dns_srv_data *dsd;
+				char *domain = NULL;
+				
+				domain = strstr(r->record, "._udp.");
+
+				if (!domain)
+					domain = strstr(r->record, "._tcp.");
+
+				if (!domain)
+					break;
+
+				domain = domain + strlen("._udp.");
+				blobmsg_add_string(buf, "domain", domain);
+
+				if (r->port)
+					blobmsg_add_u32(buf, "port", r->port);
+
+				if (r->ttl)
+					blobmsg_add_u32(buf, "ttl", r->ttl);
+
+				if (r->time) {
+					struct tm *local_time;
+					char str_tm[32] = {0};
+					time_t last_update = time(NULL) - (monotonic_time() - r->time);
+					local_time = localtime(&last_update);
+					strftime(str_tm, sizeof(str_tm), "%Y-%m-%dT%H:%M:%SZ", local_time);
+
+					blobmsg_add_string(buf, "last_update", str_tm);
+				}
+
+				dsd = (const struct dns_srv_data*)r->rdata;
+
+				if (r->rdlength > sizeof(*dsd)) {
+					blobmsg_add_u32(buf, "priority", be16_to_cpu(dsd->priority));
+					blobmsg_add_u32(buf, "weight", be16_to_cpu(dsd->weight));
+				}
+			}
+
 			break;
 		}
 
