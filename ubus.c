@@ -15,6 +15,7 @@
 #include <arpa/inet.h>
 
 #include <stdio.h>
+#include <ctype.h>
 
 #include <libubus.h>
 #include <libubox/vlist.h>
@@ -48,6 +49,76 @@ umdns_update(struct ubus_context *ctx, struct ubus_object *obj,
 	return 0;
 }
 
+static void
+dump_announced_services(void)
+{
+	struct service *s;
+	void *c0, *c1 = NULL, *c2 = NULL;
+
+	c0 = blobmsg_open_table(&b, "announced_services");
+
+	vlist_for_each_element(&announced_services, s, node) {
+		// is something there?
+		if (!s->id || !strlen(s->id))
+			continue;
+
+		if (!s->service || !strlen(s->service))
+			continue;
+
+		if (!s->port)
+			continue;
+
+		if (!c1) {
+			c1 = blobmsg_open_table(&b, (const char *) s->service);
+		}
+
+		c2 = blobmsg_open_table(&b, s->id);
+
+		blobmsg_add_u32(&b, "port", s->port);
+
+		// check if there are any text entries
+		if (s->txt_len) {
+			void *c_txt = NULL;
+			int i;
+
+			// this string will hold text records
+			char *txt_str = (char *) calloc(s->txt_len, sizeof(char));
+
+			// we get some weird characters like \u000b, so get don't copy them
+			for (i=0; i<s->txt_len; i++) {
+				if ((ispunct(s->txt[i])) || (isalnum(s->txt[i])))
+					txt_str[i] = (char) s->txt[i];
+				else
+					txt_str[i] = ' ';
+			}
+
+			txt_str[s->txt_len] = '\0';
+
+			// a table of txt json objects
+			c_txt = blobmsg_open_array(&b, "txt");
+
+			// split based on space and add each token to output
+			char *pch = NULL, *pchr = NULL;
+
+			for (pch = strtok_r(txt_str, " ", &pchr); pch != NULL; pch = strtok_r(NULL, " ", &pchr)) {
+				// add it to array
+				blobmsg_add_string(&b, "txt", pch);
+			}
+
+			// close the array
+			blobmsg_close_array(&b, c_txt);
+
+			// free the calloced memory
+			free(txt_str);
+		}
+
+		blobmsg_close_table(&b, c2);
+		blobmsg_close_table(&b, c1);
+		c1 = NULL;
+	}
+	blobmsg_close_table(&b, c0);
+}
+
 enum {
 	BROWSE_SERVICE,
 	BROWSE_ARRAY,
@@ -69,7 +140,7 @@ umdns_browse(struct ubus_context *ctx, struct ubus_object *obj,
 	struct cache_service *s, *q;
 	char *buffer = (char *) mdns_buf;
 	struct blob_attr *data[BROWSE_MAX];
-	void *c1 = NULL, *c2;
+	void *c0, *c1 = NULL, *c2;
 	char *service = NULL;
 	int array = 0;
 	bool address = true;
@@ -83,6 +154,9 @@ umdns_browse(struct ubus_context *ctx, struct ubus_object *obj,
 		address = blobmsg_get_bool(data[BROWSE_ADDRESS]);
 
 	blob_buf_init(&b, 0);
+
+	c0 = blobmsg_open_table(&b, "discovered_services");
+
 	avl_for_each_element(&services, s, avl) {
 		const char *hostname = buffer;
 		char *local;
@@ -116,6 +190,9 @@ umdns_browse(struct ubus_context *ctx, struct ubus_object *obj,
 			c1 = NULL;
 		}
 	}
+	blobmsg_close_table(&b, c0);
+
+	dump_announced_services();
 	ubus_send_reply(ctx, req, b.head);
 
 	return UBUS_STATUS_OK;

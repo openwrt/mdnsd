@@ -22,9 +22,7 @@
 #include <time.h>
 
 #include <libubus.h>
-#include <libubox/vlist.h>
 #include <libubox/uloop.h>
-#include <libubox/avl-cmp.h>
 #include <libubox/blobmsg_json.h>
 
 #include "ubus.h"
@@ -43,20 +41,6 @@ enum {
 	__SERVICE_MAX,
 };
 
-struct service {
-	struct vlist_node node;
-
-	time_t t;
-
-	const char *id;
-	const char *instance;
-	const char *service;
-	const uint8_t *txt;
-	int txt_len;
-	int port;
-	int active;
-};
-
 static const struct blobmsg_policy service_policy[__SERVICE_MAX] = {
 	[SERVICE_INSTANCE] = { .name = "instance", .type = BLOBMSG_TYPE_STRING },
 	[SERVICE_SERVICE] = { .name = "service", .type = BLOBMSG_TYPE_STRING },
@@ -66,15 +50,11 @@ static const struct blobmsg_policy service_policy[__SERVICE_MAX] = {
 };
 
 static void
-service_update(struct vlist_tree *tree, struct vlist_node *node_new,
-	       struct vlist_node *node_old);
-
-static void
 hostname_update(struct vlist_tree *tree, struct vlist_node *node_new,
 		struct vlist_node *node_old);
 
 static struct blob_buf b;
-static VLIST_TREE(services, avl_strcmp, service_update, false, false);
+VLIST_TREE(announced_services, avl_strcmp, service_update, false, false);
 VLIST_TREE(hostnames, avl_strcmp, hostname_update, false, false);
 static int service_init_announce;
 
@@ -168,7 +148,7 @@ service_reply(struct interface *iface, struct sockaddr *to, const char *instance
 {
 	struct service *s;
 
-	vlist_for_each_element(&services, s, node) {
+	vlist_for_each_element(&announced_services, s, node) {
 		if (instance && strcmp(s->instance, instance))
 			continue;
 		if (service_domain && strcmp(s->service, service_domain))
@@ -182,7 +162,7 @@ service_announce_services(struct interface *iface, struct sockaddr *to, int ttl)
 {
 	struct service *s;
 
-	vlist_for_each_element(&services, s, node) {
+	vlist_for_each_element(&announced_services, s, node) {
 		s->t = 0;
 		if (ttl) {
 			dns_init_answer();
@@ -193,7 +173,7 @@ service_announce_services(struct interface *iface, struct sockaddr *to, int ttl)
 	}
 }
 
-static void
+void
 service_update(struct vlist_tree *tree, struct vlist_node *node_new,
 	       struct vlist_node *node_old)
 {
@@ -315,7 +295,7 @@ service_load_blob(struct blob_attr *b)
 			d_txt += len;
 		}
 
-	vlist_add(&services, &s->node, s->id);
+	vlist_add(&announced_services, &s->node, s->id);
 }
 
 static void
@@ -348,7 +328,7 @@ service_init_cb(struct ubus_request *req, int type, struct blob_attr *msg)
 
 	get_hostname();
 
-	vlist_update(&services);
+	vlist_update(&announced_services);
 	vlist_update(&hostnames);
 	service_load("/etc/umdns/*");
 
@@ -393,7 +373,7 @@ service_init_cb(struct ubus_request *req, int type, struct blob_attr *msg)
 			}
 		}
 	}
-	vlist_flush(&services);
+	vlist_flush(&announced_services);
 	vlist_flush(&hostnames);
 }
 
@@ -409,6 +389,6 @@ service_init(int announce)
 void
 service_cleanup(void)
 {
-	vlist_flush(&services);
+	vlist_flush(&announced_services);
 	blob_buf_free(&b);
 }
