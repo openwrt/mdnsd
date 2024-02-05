@@ -14,16 +14,35 @@
 #ifndef _SERVICE_H__
 #define _SERVICE_H__
 
+#include <libubox/vlist.h>
+#include <libubox/avl-cmp.h>
+
+struct service {
+	struct vlist_node node;
+
+	time_t t;
+
+	const char *id;
+	const char *instance;
+	const char *service;
+	const uint8_t *txt;
+	int txt_len;
+	int port;
+	int active;
+};
+
 struct hostname {
 	struct vlist_node node;
 
 	const char *hostname;
 };
 extern struct vlist_tree hostnames;
+extern struct vlist_tree announced_services;
 
 extern void service_init(int announce);
 extern void service_cleanup(void);
 extern void service_reply(struct interface *iface, struct sockaddr *to, const char *instance, const char *service_domain, int ttl);
 extern void service_announce_services(struct interface *iface, struct sockaddr *to, int ttl);
+extern void service_update(struct vlist_tree *tree, struct vlist_node *node_new, struct vlist_node *node_old);
 
 #endif
