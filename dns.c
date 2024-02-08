@@ -380,8 +380,6 @@ parse_question(struct interface *iface, struct sockaddr *from, char *name, struc
 
 	case TYPE_PTR:
 		if (!strcmp(name, C_DNS_SD)) {
-			dns_reply_a(iface, to, announce_ttl, NULL);
-			dns_reply_a_additional(iface, to, announce_ttl);
 			service_announce_services(iface, to, announce_ttl);
 		} else {
 			if (name[0] == '_') {
