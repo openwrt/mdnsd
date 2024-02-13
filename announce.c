@@ -65,9 +65,9 @@ announce_timer(struct uloop_timeout *timeout)
 			/* Fall through */
 
 		case STATE_ANNOUNCE:
-			dns_reply_a(iface, NULL, announce_ttl, NULL);
+			dns_reply_a(iface, NULL, announce_ttl, NULL, NULL, 0);
 			dns_reply_a_additional(iface, NULL, announce_ttl);
-			service_announce_services(iface, NULL, announce_ttl);
+			service_announce_services(iface, NULL, announce_ttl, NULL, 0);
 			uloop_timeout_set(timeout, announce_ttl * 800);
 			break;
 	}

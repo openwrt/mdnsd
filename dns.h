@@ -77,8 +77,8 @@ void dns_send_question(struct interface *iface, struct sockaddr *to,
 		       const char *question, int type, int multicast);
 void dns_init_answer(void);
 void dns_add_answer(int type, const uint8_t *rdata, uint16_t rdlength, int ttl);
-void dns_send_answer(struct interface *iface, struct sockaddr *to, const char *answer);
-void dns_reply_a(struct interface *iface, struct sockaddr *to, int ttl, const char *hostname);
+void dns_send_answer(struct interface *iface, struct sockaddr *to, const char *answer, uint8_t *orig_buffer, int orig_len);
+void dns_reply_a(struct interface *iface, struct sockaddr *to, int ttl, const char *hostname, uint8_t *orig_buffer, int orig_len);
 void dns_reply_a_additional(struct interface *iface, struct sockaddr *to, int ttl);
 const char* dns_type_string(uint16_t type);
 void dns_handle_packet(struct interface *iface, struct sockaddr *s, uint16_t port, uint8_t *buf, int len);

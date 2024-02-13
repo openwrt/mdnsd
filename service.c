@@ -138,7 +138,8 @@ service_timeout(struct service *s)
 }
 
 static void
-service_reply_single(struct interface *iface, struct sockaddr *to, struct service *s, int ttl, int force)
+service_reply_single(struct interface *iface, struct sockaddr *to, struct service *s, int ttl, int force,
+		uint8_t *orig_buffer, int orig_len)
 {
 	const char *host = service_instance_name(s);
 	char *service = strstr(host, "._");
@@ -154,17 +155,18 @@ service_reply_single(struct interface *iface, struct sockaddr *to, struct servic
 
 	dns_init_answer();
 	service_add_ptr(service_instance_name(s), ttl);
-	dns_send_answer(iface, to, service);
+	dns_send_answer(iface, to, service, orig_buffer, orig_len);
 
 	dns_init_answer();
 	service_add_srv(s, ttl);
 	if (s->txt && s->txt_len)
 		dns_add_answer(TYPE_TXT, (uint8_t *) s->txt, s->txt_len, ttl);
-	dns_send_answer(iface, to, host);
+	dns_send_answer(iface, to, host, orig_buffer, orig_len);
 }
 
 void
-service_reply(struct interface *iface, struct sockaddr *to, const char *instance, const char *service_domain, int ttl)
+service_reply(struct interface *iface, struct sockaddr *to, const char *instance, const char *service_domain, int ttl,
+		uint8_t *orig_buffer, int orig_len)
 {
 	struct service *s;
 
@@ -173,12 +175,12 @@ service_reply(struct interface *iface, struct sockaddr *to, const char *instance
 			continue;
 		if (service_domain && strcmp(s->service, service_domain))
 			continue;
-		service_reply_single(iface, to, s, ttl, 0);
+		service_reply_single(iface, to, s, ttl, 0, orig_buffer, orig_len);
 	}
 }
 
 void
-service_announce_services(struct interface *iface, struct sockaddr *to, int ttl)
+service_announce_services(struct interface *iface, struct sockaddr *to, int ttl, uint8_t *orig_buffer, int orig_len)
 {
 	struct service *s;
 
@@ -187,9 +189,9 @@ service_announce_services(struct interface *iface, struct sockaddr *to, int ttl)
 		if (ttl) {
 			dns_init_answer();
 			service_add_ptr(s->service, ttl);
-			dns_send_answer(iface, to, C_DNS_SD);
+			dns_send_answer(iface, to, C_DNS_SD, orig_buffer, orig_len);
 		}
-		service_reply_single(iface, to, s, ttl, 0);
+		service_reply_single(iface, to, s, ttl, 0, NULL, 0);
 	}
 }
 
@@ -205,7 +207,7 @@ service_update(struct vlist_tree *tree, struct vlist_node *node_new,
 		if (service_init_announce)
 			vlist_for_each_element(&interfaces, iface, node) {
 				s->t = 0;
-				service_reply_single(iface, NULL, s, announce_ttl, 1);
+				service_reply_single(iface, NULL, s, announce_ttl, 1, NULL, 0);
 			}
 		return;
 	}
@@ -213,7 +215,7 @@ service_update(struct vlist_tree *tree, struct vlist_node *node_new,
 	s = container_of(node_old, struct service, node);
 	if (!node_new && service_init_announce)
 		vlist_for_each_element(&interfaces, iface, node)
-			service_reply_single(iface, NULL, s, 0, 1);
+			service_reply_single(iface, NULL, s, 0, 1, NULL, 0);
 	free(s);
 }
 
@@ -227,14 +229,14 @@ hostname_update(struct vlist_tree *tree, struct vlist_node *node_new,
 	if (!node_old) {
 		h = container_of(node_new, struct hostname, node);
 		vlist_for_each_element(&interfaces, iface, node)
-			dns_reply_a(iface, NULL, announce_ttl, h->hostname);
+			dns_reply_a(iface, NULL, announce_ttl, h->hostname, NULL, 0);
 		return;
 	}
 
 	h = container_of(node_old, struct hostname, node);
 	if (!node_new)
 		vlist_for_each_element(&interfaces, iface, node)
-			dns_reply_a(iface, NULL, 0, h->hostname);
+			dns_reply_a(iface, NULL, 0, h->hostname, NULL, 0);
 
 	free(h);
 }
