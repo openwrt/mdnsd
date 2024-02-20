@@ -440,13 +440,144 @@ static int parse_answer(struct interface *iface, struct sockaddr *from,
 	return 0;
 }
 
+static int
+match_ipv6_addresses(char *reverse_ip, struct in6_addr *intf_ip)
+{
+	int i = 0, j = 0, idx = 0;
+	char temp_ip[INET6_ADDRSTRLEN] = "";
+	struct in6_addr buf;
+
+	for (i = strlen(reverse_ip) - 1; i >= 0; i--) {
+		if (reverse_ip[i] == '.')
+			continue;
+
+		if (j == 4) {
+			temp_ip[idx] = ':';
+			idx++;
+			j = 0;
+		}
+		temp_ip[idx] = reverse_ip[i];
+		idx++;
+		j++;
+	}
+
+	if (inet_pton(AF_INET6, temp_ip, &buf) <= 0)
+		return 0;
+
+	return !memcmp(&buf, intf_ip, sizeof(buf));
+}
+
+static int
+match_ip_addresses(char *reverse_ip, char *intf_ip)
+{
+	int ip1[4], ip2[4];
+
+	sscanf(reverse_ip, "%d.%d.%d.%d", &ip1[3], &ip1[2], &ip1[1], &ip1[0]);
+	sscanf(intf_ip, "%d.%d.%d.%d", &ip2[0], &ip2[1], &ip2[2], &ip2[3]);
+
+	int i;
+	for (i = 0; i < 4; i++) {
+		if (ip1[i] != ip2[i])
+			return 0;
+	}
+	return 1;
+}
+
+static void
+dns_reply_reverse_ip6_mapping(struct interface *iface, struct sockaddr *to, int ttl, char *name, char *reverse_ip)
+{
+	struct ifaddrs *ifap, *ifa;
+	struct sockaddr_in6 *sa6;
+
+	char intf_ip[INET6_ADDRSTRLEN] = "";
+	uint8_t buffer[256];
+	int len;
+
+	getifaddrs(&ifap);
+	dns_packet_init();
+	for (ifa = ifap; ifa; ifa = ifa->ifa_next) {
+		if (strcmp(ifa->ifa_name, iface->name))
+			continue;
+		if (ifa->ifa_addr->sa_family == AF_INET6) {
+			sa6 = (struct sockaddr_in6 *) ifa->ifa_addr;
+			if (inet_ntop(AF_INET6, &sa6->sin6_addr, intf_ip, INET6_ADDRSTRLEN) == NULL)
+				continue;
+
+			if (match_ipv6_addresses(reverse_ip, &sa6->sin6_addr)) {
+				len = dn_comp(mdns_hostname_local, buffer, sizeof(buffer), NULL, NULL);
+
+				if (len < 1)
+					continue;
+
+				dns_packet_answer(name, TYPE_PTR, buffer, len, ttl);
+			}
+		}
+	}
+	dns_packet_send(iface, to, 0, 0);
+
+	freeifaddrs(ifap);
+}
+
+static void
+dns_reply_reverse_ip4_mapping(struct interface *iface, struct sockaddr *to, int ttl, char *name, char *reverse_ip)
+{
+	struct ifaddrs *ifap, *ifa;
+	struct sockaddr_in *sa;
+
+	char intf_ip[INET_ADDRSTRLEN] = "";
+	uint8_t buffer[256];
+	int len;
+
+	getifaddrs(&ifap);
+	dns_packet_init();
+	for (ifa = ifap; ifa; ifa = ifa->ifa_next) {
+		if (strcmp(ifa->ifa_name, iface->name))
+			continue;
+		if (ifa->ifa_addr->sa_family == AF_INET) {
+			sa = (struct sockaddr_in *) ifa->ifa_addr;
+			if (inet_ntop(AF_INET, &sa->sin_addr, intf_ip, INET_ADDRSTRLEN) == NULL)
+				continue;
+
+			if (match_ip_addresses(reverse_ip, intf_ip)) {
+				len = dn_comp(mdns_hostname_local, buffer, sizeof(buffer), NULL, NULL);
+
+				if (len < 1)
+					continue;
+
+				dns_packet_answer(name, TYPE_PTR, buffer, len, ttl);
+			}
+		}
+	}
+	dns_packet_send(iface, to, 0, 0);
+
+	freeifaddrs(ifap);
+}
+
+static bool
+is_reverse_dns_query(const char *name, const char *suffix)
+{
+	if (!name || !suffix)
+		return false;
+
+	size_t name_len = strlen(name);
+	size_t suffix_len = strlen(suffix);
+
+	if (suffix_len > name_len)
+		return false;
+
+	if (strncmp(name + (name_len - suffix_len), suffix, suffix_len) == 0)
+		return true;
+
+	return false;
+}
+
 static void
 parse_question(struct interface *iface, struct sockaddr *from, char *name, struct dns_question *q)
 {
 	int is_unicast = (q->class & CLASS_UNICAST) != 0;
 	struct sockaddr *to = NULL;
 	struct hostname *h;
-	char *host;
+	char *host, *host6;
 
 	/* TODO: Multicast if more than one quarter of TTL has passed */
 	if (is_unicast) {
@@ -467,6 +598,24 @@ parse_question(struct interface *iface, struct sockaddr *from, char *name, struc
 		break;
 
 	case TYPE_PTR:
+		if (is_reverse_dns_query(name, ".in-addr.arpa")) {
+			host = strstr(name, ".in-addr.arpa");
+			char name_buf[256];
+			strcpy(name_buf, name);
+			*host = '\0';
+			dns_reply_reverse_ip4_mapping(iface, to, announce_ttl, name_buf, name);
+			break;
+		}
+
+		if (is_reverse_dns_query(name, ".ip6.arpa")) {
+			host6 = strstr(name, ".ip6.arpa");
+			char name_buf6[256];
+			strcpy(name_buf6, name);
+			*host6 = '\0';
+			dns_reply_reverse_ip6_mapping(iface, to, announce_ttl, name_buf6, name);
+			break;
+		}
+
 		if (!strcasecmp(name, C_DNS_SD)) {
 			service_announce_services(iface, to, announce_ttl);
 		} else {
