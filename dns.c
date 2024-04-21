@@ -358,6 +358,7 @@ static void
 parse_question(struct interface *iface, struct sockaddr *from, char *name, struct dns_question *q)
 {
 	struct sockaddr *to = NULL;
+	struct hostname *h;
 	char *host;
 
 	/* TODO: Multicast if more than one quarter of TTL has passed */
@@ -404,8 +405,15 @@ parse_question(struct interface *iface, struct sockaddr *from, char *name, struc
 		host = strstr(name, ".local");
 		if (host)
 			*host = '\0';
-		if (!strcmp(umdns_host_label, name))
+		if (!strcmp(umdns_host_label, name)) {
 			dns_reply_a(iface, to, announce_ttl, NULL);
+		} else {
+			if (host)
+				*host = '.';
+			vlist_for_each_element(&hostnames, h, node)
+				if (!strcmp(h->hostname, name))
+					dns_reply_a(iface, to, announce_ttl, h->hostname);
+		}
 		break;
 	};
 }
