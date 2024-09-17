@@ -143,11 +143,11 @@ void
 cache_update(void)
 {
 	struct interface *iface;
-	struct cache_service *s;
 
-	vlist_for_each_element(&interfaces, iface, node)
-		avl_for_each_element(&services, s, avl)
-			dns_send_question(iface, NULL, s->entry, TYPE_PTR, 0);
+	vlist_for_each_element(&interfaces, iface, node) {
+		dns_send_question(iface, NULL, C_DNS_SD, TYPE_ANY, 0);
+		dns_send_question(iface, NULL, C_DNS_SD, TYPE_PTR, 0);
+	}
 }
 
 static struct cache_service*
