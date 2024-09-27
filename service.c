@@ -182,15 +182,14 @@ service_announce_services(struct interface *iface, struct sockaddr *to, int ttl)
 {
 	struct service *s;
 
+	dns_init_answer();
 	vlist_for_each_element(&services, s, node) {
 		s->t = 0;
 		if (ttl) {
-			dns_init_answer();
 			service_add_ptr(s->service, ttl);
-			dns_send_answer(iface, to, C_DNS_SD);
 		}
-		service_reply_single(iface, to, s, ttl, 0);
 	}
+	dns_send_answer(iface, to, C_DNS_SD);
 }
 
 static void
