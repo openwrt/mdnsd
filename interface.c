@@ -83,6 +83,7 @@ interface_send_packet4(struct interface *iface, struct sockaddr_in *to, struct i
 		if (to)
 			fprintf(stderr, "Ignoring IPv4 address for multicast interface\n");
 	} else {
+		a.sin_port = to->sin_port;
 		a.sin_addr.s_addr = to->sin_addr.s_addr;
 	}
 
@@ -652,9 +653,9 @@ void interface_shutdown(void)
 
 	vlist_for_each_element(&interfaces, iface, node)
 		if (interface_multicast(iface)) {
-			dns_reply_a(iface, NULL, 0, NULL);
+			dns_reply_a(iface, NULL, 0, NULL, NULL, 0);
 			dns_reply_a_additional(iface, NULL, 0);
-			service_announce_services(iface, NULL, 0);
+			service_announce_services(iface, NULL, 0, NULL, 0);
 		}
 
 	for (size_t i = 0; i < ARRAY_SIZE(ufd); i++) {

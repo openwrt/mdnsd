@@ -43,6 +43,13 @@ static char name_buffer[MAX_NAME_LEN + 1];
 static char dns_buffer[MAX_NAME_LEN];
 static struct blob_buf ans_buf;
 
+static struct dns_header*
+dns_consume_header(uint8_t **data, int *len);
+static char *
+dns_consume_name(const uint8_t *base, int blen, uint8_t **data, int *len);
+static struct dns_question*
+dns_consume_question(uint8_t **data, int *len);
+
 const char*
 dns_type_string(uint16_t type)
 {
@@ -139,7 +146,7 @@ dns_add_answer(int type, const uint8_t *rdata, uint16_t rdlength, int ttl)
 }
 
 void
-dns_send_answer(struct interface *iface, struct sockaddr *to, const char *answer)
+dns_send_answer(struct interface *iface, struct sockaddr *to, const char *answer, uint8_t *orig_buffer, int orig_len)
 {
 	uint8_t buffer[256];
 	struct blob_attr *attr;
@@ -147,18 +154,42 @@ dns_send_answer(struct interface *iface, struct sockaddr *to, const char *answer
 	struct iovec *iov;
 	int answer_len, rem;
 	int n_iov = 0;
+	uint16_t q_cnt = 0;
+	struct dns_header *orig_h;
+	uint8_t *b = orig_buffer;
+	int rlen = orig_len;
 
 	if (!dns_answer_cnt)
 		return;
 
+	if (orig_buffer != NULL) {
+		orig_h = dns_consume_header(&b, &rlen);
+		if (!orig_h) {
+			fprintf(stderr, "dropping: bad header\n");
+			return;
+		}
+
+		q_cnt = orig_h->questions;
+		h.questions = cpu_to_be16(orig_h->questions);
+		h.id = cpu_to_be16(orig_h->id);
+	}
 	h.answers = cpu_to_be16(dns_answer_cnt);
 	h.flags = cpu_to_be16(0x8400);
 
-	iov = alloca(sizeof(struct iovec) * ((dns_answer_cnt * 2) + 1));
+	iov = alloca(sizeof(struct iovec) * ((dns_answer_cnt * 2) + 1 + q_cnt));
 
 	iov[n_iov].iov_base = &h;
 	iov[n_iov].iov_len = sizeof(struct dns_header);
 	n_iov++;
+
+	/* if the answer is in reply to a question, the copy the question in answer
+	 * so that the dns format is correct, as per section 6.7 of rfc 6762 */
+	if (orig_buffer != NULL) {
+		/* after consuming the header above, b now points to query section */
+		iov[n_iov].iov_base = b;
+		iov[n_iov].iov_len = rlen;
+		n_iov++;
+	}
 
 	answer_len = dn_comp(answer, buffer, sizeof(buffer), NULL, NULL);
 	if (answer_len < 1)
@@ -178,12 +209,13 @@ dns_send_answer(struct interface *iface, struct sockaddr *to, const char *answer
 		DBG(1, "A <- %s %s\n", dns_type_string(be16_to_cpu(a->type)), answer);
 	}
 
+
 	if (interface_send_packet(iface, to, iov, n_iov) < 0)
 		perror("failed to send answer");
 }
 
 void
-dns_reply_a(struct interface *iface, struct sockaddr *to, int ttl, const char *hostname)
+dns_reply_a(struct interface *iface, struct sockaddr *to, int ttl, const char *hostname, uint8_t *orig_buffer, int orig_len)
 {
 	struct ifaddrs *ifap, *ifa;
 	struct sockaddr_in *sa;
@@ -204,7 +236,7 @@ dns_reply_a(struct interface *iface, struct sockaddr *to, int ttl, const char *h
 			dns_add_answer(TYPE_AAAA, (uint8_t *) &sa6->sin6_addr, 16, ttl);
 		}
 	}
-	dns_send_answer(iface, to, hostname ? hostname : mdns_hostname_local);
+	dns_send_answer(iface, to, hostname ? hostname : mdns_hostname_local,  orig_buffer, orig_len);
 
 	freeifaddrs(ifap);
 }
@@ -215,7 +247,7 @@ dns_reply_a_additional(struct interface *iface, struct sockaddr *to, int ttl)
 	struct hostname *h;
 
 	vlist_for_each_element(&hostnames, h, node)
-		dns_reply_a(iface, to, ttl, h->hostname);
+		dns_reply_a(iface, to, ttl, h->hostname, NULL, 0);
 }
 
 static int
@@ -355,17 +387,27 @@ static int parse_answer(struct interface *iface, struct sockaddr *from,
 }
 
 static void
-parse_question(struct interface *iface, struct sockaddr *from, char *name, struct dns_question *q)
+parse_question(struct interface *iface, struct sockaddr *from, char *name, struct dns_question *q,
+		uint8_t *orig_buffer, int orig_len, uint16_t port)
 {
 	struct sockaddr *to = NULL;
 	struct hostname *h;
 	char *host;
 
 	/* TODO: Multicast if more than one quarter of TTL has passed */
-	if (q->class & CLASS_UNICAST) {
+	if ((q->class & CLASS_UNICAST) || port != MCAST_PORT) {
+		/* As per rfc 6762 section 6.7, if source port is not multicast port,
+		 * then the response should be unicast udp to the source port */
 		to = from;
 		if (interface_multicast(iface))
 			iface = interface_get(iface->name, iface->type | SOCKTYPE_BIT_UNICAST);
+	} else {
+		/* if the query is from multicast port, no need for original buffer
+		 * while responding as per rfc 6762, section 6:
+		 * Multicast DNS responses MUST NOT contain any questions in the
+		 * Question Section. */
+		orig_buffer = NULL;
+		orig_len = 0;
 	}
 
 	DBG(1, "Q -> %s %s\n", dns_type_string(q->type), name);
@@ -373,27 +415,27 @@ parse_question(struct interface *iface, struct sockaddr *from, char *name, struc
 	switch (q->type) {
 	case TYPE_ANY:
 		if (!strcmp(name, mdns_hostname_local)) {
-			dns_reply_a(iface, to, announce_ttl, NULL);
+			dns_reply_a(iface, to, announce_ttl, NULL, orig_buffer, orig_len);
 			dns_reply_a_additional(iface, to, announce_ttl);
-			service_reply(iface, to, NULL, NULL, announce_ttl);
+			service_reply(iface, to, NULL, NULL, announce_ttl, orig_buffer, orig_len);
 		}
 		break;
 
 	case TYPE_PTR:
 		if (!strcmp(name, C_DNS_SD)) {
-			dns_reply_a(iface, to, announce_ttl, NULL);
+			dns_reply_a(iface, to, announce_ttl, NULL, orig_buffer, orig_len);
 			dns_reply_a_additional(iface, to, announce_ttl);
-			service_announce_services(iface, to, announce_ttl);
+			service_announce_services(iface, to, announce_ttl, orig_buffer, orig_len);
 		} else {
 			if (name[0] == '_') {
-				service_reply(iface, to, NULL, name, announce_ttl);
+				service_reply(iface, to, NULL, name, announce_ttl, orig_buffer, orig_len);
 			} else {
 				/* First dot separates instance name from the rest */
 				char *dot = strchr(name, '.');
 
 				if (dot) {
 					*dot = '\0';
-					service_reply(iface, to, name, dot + 1, announce_ttl);
+					service_reply(iface, to, name, dot + 1, announce_ttl, orig_buffer, orig_len);
 					*dot = '.';
 				}
 			}
@@ -406,13 +448,13 @@ parse_question(struct interface *iface, struct sockaddr *from, char *name, struc
 		if (host)
 			*host = '\0';
 		if (!strcmp(umdns_host_label, name)) {
-			dns_reply_a(iface, to, announce_ttl, NULL);
+			dns_reply_a(iface, to, announce_ttl, NULL, orig_buffer, orig_len);
 		} else {
 			if (host)
 				*host = '.';
 			vlist_for_each_element(&hostnames, h, node)
 				if (!strcmp(h->hostname, name))
-					dns_reply_a(iface, to, announce_ttl, h->hostname);
+					dns_reply_a(iface, to, announce_ttl, h->hostname, NULL, 0);
 		}
 		break;
 	};
@@ -424,16 +466,17 @@ dns_handle_packet(struct interface *iface, struct sockaddr *from, uint16_t port,
 	struct dns_header *h;
 	uint8_t *b = buffer;
 	int rlen = len;
+	uint8_t orig_buffer[len];
+
+	/* make a copy of the original buffer since it might be needed to construct the answer
+	 * in case the query is received from a one-shot multicast dns querier */
+	memcpy(orig_buffer, buffer, len);
 
 	h = dns_consume_header(&b, &rlen);
 	if (!h) {
 		fprintf(stderr, "dropping: bad header\n");
 		return;
 	}
-
-	if (h->questions && !interface_multicast(iface) && port != MCAST_PORT)
-		/* silently drop unicast questions that dont originate from port 5353 */
-		return;
 
 	while (h->questions-- > 0) {
 		char *name = dns_consume_name(buffer, len, &b, &rlen);
@@ -451,7 +494,7 @@ dns_handle_packet(struct interface *iface, struct sockaddr *from, uint16_t port,
 		}
 
 		if (!(h->flags & FLAG_RESPONSE))
-			parse_question(iface, from, name, q);
+			parse_question(iface, from, name, q, orig_buffer, len, port);
 	}
 
 	if (!(h->flags & FLAG_RESPONSE))
