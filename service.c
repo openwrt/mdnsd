@@ -161,16 +161,18 @@ void
 service_announce_services(struct interface *iface, struct sockaddr *to, int ttl)
 {
 	struct service *s;
+	int count = 0;
 
+	dns_init_answer();
 	vlist_for_each_element(&announced_services, s, node) {
 		s->t = 0;
 		if (ttl) {
-			dns_init_answer();
 			service_add_ptr(s->service, ttl);
-			dns_send_answer(iface, to, C_DNS_SD);
+			count++;
 		}
-		service_reply_single(iface, to, s, ttl, 0);
 	}
+	if (count)
+		dns_send_answer(iface, to, C_DNS_SD);
 }
 
 void
