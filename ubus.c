@@ -297,6 +297,7 @@ umdns_query(struct ubus_context *ctx, struct ubus_object *obj,
 		    struct ubus_request_data *req, const char *method,
 		    struct blob_attr *msg)
 {
+	struct interface *iface_v4 = NULL, *iface_v6 = NULL;
 	struct blob_attr *tb[QUERY_MAX], *c;
 	const char *question = C_DNS_SD;
 	const char *ifname;
@@ -304,32 +305,37 @@ umdns_query(struct ubus_context *ctx, struct ubus_object *obj,
 
 	blobmsg_parse(query_policy, QUERY_MAX, tb, blob_data(msg), blob_len(msg));
 
-	if (!(c = tb[QUERY_IFACE]))
-		return UBUS_STATUS_INVALID_ARGUMENT;
-
-	ifname = blobmsg_get_string(c);
-
 	if ((c = tb[QUERY_QUESTION]))
 		question = blobmsg_get_string(c);
 
 	if ((c = tb[QUERY_TYPE]))
 		type = blobmsg_get_u32(c);
 
-	struct interface *iface_v4 = interface_get(ifname, SOCK_MC_IPV4);
-	struct interface *iface_v6 = interface_get(ifname, SOCK_MC_IPV6);
-
-	if (!iface_v4 && !iface_v6)
-		return UBUS_STATUS_NOT_FOUND;
+	if ((c = tb[QUERY_IFACE]) != NULL) {
+		ifname = blobmsg_get_string(c);
+		iface_v4 = interface_get(ifname, SOCK_MC_IPV4);
+		iface_v6 = interface_get(ifname, SOCK_MC_IPV6);
+		if (!iface_v4 && !iface_v6)
+			return UBUS_STATUS_NOT_FOUND;
+	}
 
 	if (!strcmp(method, "query")) {
-		if (iface_v4)
-			dns_send_question(iface_v4, NULL, question, type, 1);
-
-		if (iface_v6)
-			dns_send_question(iface_v6, NULL, question, type, 1);
+		if (!iface_v4 && !iface_v6) {
+			struct interface *iface;
+			vlist_for_each_element(&interfaces, iface, node)
+				dns_send_question(iface, NULL, question, type, 1);
+		} else {
+			if (iface_v4)
+				dns_send_question(iface_v4, NULL, question, type, 1);
+			if (iface_v6)
+				dns_send_question(iface_v6, NULL, question, type, 1);
+		}
 
 		return UBUS_STATUS_OK;
 	} else if (!strcmp(method, "fetch")) {
+		if (!iface_v4 && !iface_v6)
+			return UBUS_STATUS_INVALID_ARGUMENT;
+
 		blob_buf_init(&b, 0);
 		void *k = blobmsg_open_array(&b, "records");
 		cache_dump_recursive(&b, question, type, iface_v4 ? iface_v4 : iface_v6);
