@@ -142,11 +142,16 @@ void cache_cleanup(struct interface *iface)
 void
 cache_update(void)
 {
+	struct cache_service *s;
 	struct interface *iface;
 
 	vlist_for_each_element(&interfaces, iface, node) {
-		dns_send_question(iface, NULL, C_DNS_SD, TYPE_ANY, 0);
-		dns_send_question(iface, NULL, C_DNS_SD, TYPE_PTR, 0);
+		dns_send_question(iface, NULL, C_DNS_SD, TYPE_ANY, interface_multicast(iface));
+		dns_send_question(iface, NULL, C_DNS_SD, TYPE_PTR, interface_multicast(iface));
+		avl_for_each_element(&services, s, avl)
+			if (!s->host)
+				dns_send_question(iface, NULL, s->entry, TYPE_PTR,
+						  interface_multicast(iface));
 	}
 }
 
@@ -186,7 +191,10 @@ cache_service(struct interface *iface, char *entry, int hlen, int ttl)
 		s->avl.key = type;
 	avl_insert(&services, &s->avl);
 
-	if (!hlen)
+	if (hlen)
+		return s;
+
+	vlist_for_each_element(&interfaces, iface, node)
 		dns_send_question(iface, NULL, entry, TYPE_PTR, interface_multicast(iface));
 
 	return s;
