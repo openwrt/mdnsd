@@ -393,10 +393,17 @@ parse_question(struct interface *iface, struct sockaddr *from, char *name, struc
 	char *host;
 
 	/* TODO: Multicast if more than one quarter of TTL has passed */
-	if (is_unicast) {
+	if (is_unicast || port != MCAST_PORT) {
 		to = from;
 		if (interface_multicast(iface))
 			iface = interface_get(iface->name, iface->type | SOCKTYPE_BIT_UNICAST);
+	} else {
+		/* if the query is from multicast port, no need for original buffer
+		 * while responding as per rfc 6762, section 6:
+		 * Multicast DNS responses MUST NOT contain any questions in the
+		 * Question Section. */
+		orig_buffer = NULL;
+		orig_len = 0;
 	}
 
 	DBG(1, "Q -> %s %s\n", dns_type_string(q->type), name);
@@ -464,10 +471,6 @@ dns_handle_packet(struct interface *iface, struct sockaddr *from, uint16_t port,
 		fprintf(stderr, "dropping: bad header\n");
 		return;
 	}
-
-	if (h->questions && !interface_multicast(iface) && port != MCAST_PORT)
-		/* silently drop unicast questions that dont originate from port 5353 */
-		return;
 
 	while (h->questions-- > 0) {
 		char *name = dns_consume_name(buffer, len, &b, &rlen);
