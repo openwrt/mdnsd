@@ -462,12 +462,16 @@ iface_update_cb(struct vlist_tree *tree, struct vlist_node *node_new,
 	struct interface *if_new = container_of_safe(node_new, struct interface, node);
 
 	if (if_old && if_new) {
-		if (!iface_equal(if_old, if_new))
+		bool equal = iface_equal(if_old, if_new);
+		if (!equal)
 			cache_cleanup(if_old);
 		free(if_old->addrs.v4);
 		if_old->addrs = if_new->addrs;
 		if_old->ifindex = if_new->ifindex;
 		free(if_new);
+
+		if (!equal)
+			interface_start(if_old);
 		return;
 	}
 
