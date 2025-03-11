@@ -11,6 +11,7 @@
  * GNU General Public License for more details.
  */
 
+#define _GNU_SOURCE
 #include <sys/types.h>
 #include <sys/stat.h>
 
@@ -373,7 +374,7 @@ parse_question(struct interface *iface, struct sockaddr *from, char *name, struc
 
 	switch (q->type) {
 	case TYPE_ANY:
-		if (!strcmp(name, mdns_hostname_local)) {
+		if (!strcasecmp(name, mdns_hostname_local)) {
 			dns_reply_a(iface, to, announce_ttl, NULL);
 			dns_reply_a_additional(iface, to, announce_ttl);
 			service_reply(iface, to, NULL, NULL, announce_ttl, is_unicast);
@@ -381,7 +382,7 @@ parse_question(struct interface *iface, struct sockaddr *from, char *name, struc
 		break;
 
 	case TYPE_PTR:
-		if (!strcmp(name, C_DNS_SD)) {
+		if (!strcasecmp(name, C_DNS_SD)) {
 			service_announce_services(iface, to, announce_ttl);
 		} else {
 			if (name[0] == '_') {
@@ -401,16 +402,16 @@ parse_question(struct interface *iface, struct sockaddr *from, char *name, struc
 
 	case TYPE_AAAA:
 	case TYPE_A:
-		host = strstr(name, ".local");
+		host = strcasestr(name, ".local");
 		if (host)
 			*host = '\0';
-		if (!strcmp(umdns_host_label, name)) {
+		if (!strcasecmp(umdns_host_label, name)) {
 			dns_reply_a(iface, to, announce_ttl, NULL);
 		} else {
 			if (host)
 				*host = '.';
 			vlist_for_each_element(&hostnames, h, node)
-				if (!strcmp(h->hostname, name))
+				if (!strcasecmp(h->hostname, name))
 					dns_reply_a(iface, to, announce_ttl, h->hostname);
 		}
 		break;
