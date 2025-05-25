@@ -80,37 +80,27 @@ umdns_announcements(struct ubus_context *ctx, struct ubus_object *obj,
 		// check if there are any text entries
 		if (s->txt_len) {
 			void *c_txt = NULL;
-			int i;
-
-			// this string will hold text records
-			char *txt_str = (char *) calloc(s->txt_len, sizeof(char));
-
-			// we get some weird characters like \u000b, so get don't copy them
-			for (i=0; i<s->txt_len; i++) {
-				if ((ispunct(s->txt[i])) || (isalnum(s->txt[i])))
-					txt_str[i] = (char) s->txt[i];
-				else
-					txt_str[i] = ' ';
-			}
-
-			txt_str[s->txt_len] = '\0';
+			uint32_t txt_offset = 0;
+			char *buf;
 
 			// a table of txt json objects
 			c_txt = blobmsg_open_array(&b, "txt");
 
-			// split based on space and add each token to output
-			char *pch = NULL, *pchr = NULL;
+			while (txt_offset < s->txt_len) {
+				uint8_t len = s->txt[txt_offset++];
+				if (!len)
+					break;
 
-			for (pch = strtok_r(txt_str, " ", &pchr); pch != NULL; pch = strtok_r(NULL, " ", &pchr)) {
-				// add it to array
-				blobmsg_add_string(&b, "txt", pch);
+				// copy to NUL-terminated string
+				buf = blobmsg_alloc_string_buffer(&b, "txt", len + 1);
+				strlcpy(buf, (const char *) &s->txt[txt_offset], len+1);
+				blobmsg_add_string_buffer(&b);
+
+				txt_offset += len;
 			}
 
 			// close the array
 			blobmsg_close_array(&b, c_txt);
-
-			// free the calloced memory
-			free(txt_str);
 		}
 
 		blobmsg_close_table(&b, c2);
