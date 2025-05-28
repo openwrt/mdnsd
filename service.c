@@ -94,7 +94,7 @@ service_add_srv(const char *name, struct service *s, int ttl)
 	struct dns_srv_data *sd = (struct dns_srv_data *) mdns_buf;
 	int len = sizeof(*sd);
 
-	len += dn_comp(mdns_hostname_local, mdns_buf + len, sizeof(mdns_buf) - len, NULL, NULL);
+	len += dn_comp(s->hostname, mdns_buf + len, sizeof(mdns_buf) - len, NULL, NULL);
 	if (len <= sizeof(*sd))
 		return;
 
@@ -123,7 +123,6 @@ service_reply_single(struct interface *iface, struct sockaddr *to, struct servic
 	const char *host = service_instance_name(s);
 	char *service = strstr(host, "._");
 	time_t t = service_timeout(s);
-
 
 	if (!force && (!s->active || !service || !t))
 		return;
@@ -239,7 +238,7 @@ service_load_blob(struct blob_attr *b)
 {
 	struct blob_attr *txt, *_tb[__SERVICE_MAX];
 	struct service *s;
-	char *d_instance, *d_service, *d_id;
+	char *d_instance, *d_hostname, *d_service, *d_id;
 	uint8_t *d_txt;
 	int rem2;
 	int txt_len = 0;
@@ -248,10 +247,8 @@ service_load_blob(struct blob_attr *b)
 	blobmsg_parse(service_policy, ARRAY_SIZE(service_policy),
 		_tb, blobmsg_data(b), blobmsg_data_len(b));
 
-	if (_tb[SERVICE_HOSTNAME]) {
+	if (_tb[SERVICE_HOSTNAME])
 		service_load_hostname(_tb[SERVICE_HOSTNAME]);
-		return;
-	}
 
 	if (!_tb[SERVICE_PORT] || !_tb[SERVICE_SERVICE])
 		return;
@@ -263,6 +260,7 @@ service_load_blob(struct blob_attr *b)
 	n = strlen(blobmsg_name(b));
 	s = calloc_a(sizeof(*s),
 		&d_id, n + 1,
+		&d_hostname, _tb[SERVICE_HOSTNAME] ? strlen(blobmsg_get_string(_tb[SERVICE_HOSTNAME])) + 1 : 0,
 		&d_instance, _tb[SERVICE_INSTANCE] ? strlen(blobmsg_get_string(_tb[SERVICE_INSTANCE])) + 1 : 0,
 		&d_service, strlen(blobmsg_get_string(_tb[SERVICE_SERVICE])) + 1,
 		&d_txt, txt_len);
@@ -271,6 +269,10 @@ service_load_blob(struct blob_attr *b)
 
 	s->port = blobmsg_get_u32(_tb[SERVICE_PORT]);
 	s->id = strncpy(d_id, blobmsg_name(b), n);
+	if (_tb[SERVICE_HOSTNAME])
+		s->hostname = strcpy(d_hostname, blobmsg_get_string(_tb[SERVICE_HOSTNAME]));
+	else
+		s->hostname = mdns_hostname_local;
 	if (_tb[SERVICE_INSTANCE])
 		s->instance = strcpy(d_instance, blobmsg_get_string(_tb[SERVICE_INSTANCE]));
 	else

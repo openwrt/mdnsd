@@ -25,6 +25,7 @@ struct service {
 	const char *id;
 	const char *instance;
 	const char *service;
+	const char *hostname;
 	const uint8_t *txt;
 	int txt_len;
 	int port;
