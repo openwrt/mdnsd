@@ -185,7 +185,7 @@ void dns_packet_send(struct interface *iface, struct sockaddr *to, bool query, i
 
 	if (query) {
 		if (multicast < 0)
-			multicast = interface_multicast(iface);
+			multicast = iface->need_multicast;
 
 		for (i = 0; i < pkt_n_q; i++)
 			dns_question_set_multicast(pkt_q[i], multicast);

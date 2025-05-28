@@ -52,6 +52,7 @@ struct interface {
 
 	const char *name;
 	enum umdns_socket_type type;
+	bool need_multicast;
 	int ifindex;
 
 	struct interface_addr_list addrs;

@@ -478,7 +478,7 @@ iface_update_cb(struct vlist_tree *tree, struct vlist_node *node_new,
 		interface_start(if_new);
 }
 
-static int interface_init_socket(enum umdns_socket_type type)
+static int interface_init_socket(enum umdns_socket_type type, bool *mcast)
 {
 	struct sockaddr_in6 local6 = {
 		.sin6_family = AF_INET6
@@ -492,6 +492,7 @@ static int interface_init_socket(enum umdns_socket_type type)
 	int no = 0;
 	int fd;
 	int af = (type & SOCKTYPE_BIT_IPV6) ? AF_INET6 : AF_INET;
+	bool reuseport = false;
 
 	if (ufd[type].fd >= 0)
 		return 0;
@@ -501,9 +502,6 @@ static int interface_init_socket(enum umdns_socket_type type)
 		return -1;
 
 	setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
-#ifdef SO_REUSEPORT
-	setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &yes, sizeof(yes));
-#endif
 
 	switch (type) {
 	case SOCK_UC_IPV4:
@@ -524,6 +522,7 @@ static int interface_init_socket(enum umdns_socket_type type)
 		break;
 	}
 
+retry:
 	if (type & SOCKTYPE_BIT_IPV6) {
 		ufd[type].cb = read_socket6;
 		if (bind(fd, (struct sockaddr *)&local6, sizeof(local6)) < 0)
@@ -545,6 +544,14 @@ static int interface_init_socket(enum umdns_socket_type type)
 	return 0;
 
 error:
+	if (!reuseport) {
+#ifdef SO_REUSEPORT
+		setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &yes, sizeof(yes));
+#endif
+		reuseport = true;
+		*mcast = true;
+		goto retry;
+	}
 	close(ufd[type].fd);
 	return -1;
 }
@@ -555,9 +562,10 @@ __interface_add(const char *name, enum umdns_socket_type type,
 {
 	struct interface *iface;
 	unsigned int ifindex;
+	bool mcast = false;
 	char *id_buf;
 
-	if (interface_init_socket(type))
+	if (interface_init_socket(type, &mcast))
 		goto error;
 
 	ifindex = if_nametoindex(name);
@@ -572,6 +580,7 @@ __interface_add(const char *name, enum umdns_socket_type type,
 	iface->ifindex = ifindex;
 	iface->type = type;
 	iface->addrs = *list;
+	iface->need_multicast = mcast;
 
 	vlist_add(&interfaces, &iface->node, id_buf);
 	return;
