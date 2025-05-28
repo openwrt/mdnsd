@@ -40,8 +40,15 @@
 #include "interface.h"
 
 static char name_buffer[MAX_NAME_LEN + 1];
-static char dns_buffer[MAX_NAME_LEN];
-static struct blob_buf ans_buf;
+
+static struct {
+	struct dns_header h;
+	unsigned char data[9000 - sizeof(struct dns_header)];
+} __attribute__((packed)) pkt;
+static size_t pkt_len;
+static struct dns_question *pkt_q[32];
+static unsigned int pkt_n_q;
+static unsigned char *dnptrs[255];
 
 const char*
 dns_type_string(uint16_t type)
@@ -67,119 +74,124 @@ dns_type_string(uint16_t type)
 	return "N/A";
 }
 
-void
-dns_send_question(struct interface *iface, struct sockaddr *to,
-		  const char *question, int type, int multicast)
+void dns_packet_init(void)
 {
-	static struct dns_header h;
-	static struct dns_question q;
-	static struct iovec iov[] = {
-		{
-			.iov_base = &h,
-			.iov_len = sizeof(h),
-		},
-		{
-			.iov_base = dns_buffer,
-		},
-		{
-			.iov_base = &q,
-			.iov_len = sizeof(q),
-		}
-	};
+	dnptrs[0] = (unsigned char *)&pkt;
+	dnptrs[1] = NULL;
+	pkt_len = 0;
+	pkt_n_q = 0;
+	memset(&pkt.h, 0, sizeof(pkt.h));
+}
+
+static inline void *dns_packet_tail(size_t len)
+{
+	if (pkt_len + len > sizeof(pkt.data))
+		return NULL;
+
+	return &pkt.data[pkt_len];
+}
+
+static int
+dns_packet_add_name(const char *name)
+{
+	void *data;
+
+	data = dns_packet_tail(MAX_NAME_LEN);
+	if (!data)
+		return -1;
+
+	return dn_comp(name, data, MAX_NAME_LEN, dnptrs, dnptrs + ARRAY_SIZE(dnptrs) - 1);
+}
+
+static void *dns_packet_record_add(size_t data_len, const char *name)
+{
+	void *data;
 	int len;
 
-	h.questions = cpu_to_be16(1);
-	q.class = cpu_to_be16((multicast ? 0 : CLASS_UNICAST) | 1);
-	q.type = cpu_to_be16(type);
-
-	len = dn_comp(question, (void *) dns_buffer, sizeof(dns_buffer), NULL, NULL);
+	len = dns_packet_add_name(name);
 	if (len < 1)
-		return;
+		return NULL;
 
-	iov[1].iov_len = len;
+	data = dns_packet_tail(len + data_len);
+	if (!data)
+		return NULL;
 
-	DBG(1, "Q <- %s %s\n", dns_type_string(type), question);
-	if (interface_send_packet(iface, to, iov, ARRAY_SIZE(iov)) < 0)
-		perror("failed to send question");
+	pkt_len += len + data_len;
+
+	return data + len;
 }
 
-
-struct dns_reply {
-	int type;
-	struct dns_answer a;
-	uint16_t rdlength;
-	uint8_t *rdata;
-	char *buffer;
-};
-
-static int dns_answer_cnt;
-
-void
-dns_init_answer(void)
+bool dns_packet_question(const char *name, int type)
 {
-	dns_answer_cnt = 0;
-	blob_buf_init(&ans_buf, 0);
+	struct dns_question *q;
+
+	q = dns_packet_record_add(sizeof(*q), name);
+	if (!q)
+		return false;
+
+	pkt.h.questions += cpu_to_be16(1);
+	pkt_q[pkt_n_q++] = q;
+	memset(q, 0, sizeof(*q));
+	q->class = cpu_to_be16(1);
+	q->type = cpu_to_be16(type);
+	DBG(1, "Q <- %s %s\n", dns_type_string(type), name);
+
+	return true;
 }
 
-void
-dns_add_answer(int type, const uint8_t *rdata, uint16_t rdlength, int ttl)
+void dns_packet_answer(const char *name, int type, const uint8_t *rdata, uint16_t rdlength, int ttl)
 {
-	struct blob_attr *attr;
 	struct dns_answer *a;
 
-	attr = blob_new(&ans_buf, 0, sizeof(*a) + rdlength);
-	a = blob_data(attr);
+	pkt.h.flags |= cpu_to_be16(0x8400);
+
+	a = dns_packet_record_add(sizeof(*a) + rdlength, name);
+	memset(a, 0, sizeof(*a));
 	a->type = cpu_to_be16(type);
 	a->class = cpu_to_be16(1);
 	a->ttl = cpu_to_be32(ttl);
 	a->rdlength = cpu_to_be16(rdlength);
 	memcpy(a + 1, rdata, rdlength);
+	DBG(1, "A <- %s %s\n", dns_type_string(be16_to_cpu(a->type)), name);
 
-	dns_answer_cnt++;
+	pkt.h.answers += cpu_to_be16(1);
+}
+
+static void dns_question_set_multicast(struct dns_question *q, bool val)
+{
+	if (val)
+		q->class &= ~cpu_to_be16(CLASS_UNICAST);
+	else
+		q->class |= cpu_to_be16(CLASS_UNICAST);
+}
+
+void dns_packet_send(struct interface *iface, struct sockaddr *to, bool query, int multicast)
+{
+	struct iovec iov = {
+		.iov_base = &pkt,
+		.iov_len = sizeof(pkt.h) + pkt_len,
+	};
+	size_t i;
+
+	if (query) {
+		if (multicast < 0)
+			multicast = interface_multicast(iface);
+
+		for (i = 0; i < pkt_n_q; i++)
+			dns_question_set_multicast(pkt_q[i], multicast);
+	}
+
+	if (interface_send_packet(iface, to, &iov, 1) < 0)
+		perror("failed to send answer");
 }
 
 void
-dns_send_answer(struct interface *iface, struct sockaddr *to, const char *answer)
+dns_send_question(struct interface *iface, struct sockaddr *to,
+		  const char *question, int type, int multicast)
 {
-	uint8_t buffer[256];
-	struct blob_attr *attr;
-	struct dns_header h = { 0 };
-	struct iovec *iov;
-	int answer_len, rem;
-	int n_iov = 0;
-
-	if (!dns_answer_cnt)
-		return;
-
-	h.answers = cpu_to_be16(dns_answer_cnt);
-	h.flags = cpu_to_be16(0x8400);
-
-	iov = alloca(sizeof(struct iovec) * ((dns_answer_cnt * 2) + 1));
-
-	iov[n_iov].iov_base = &h;
-	iov[n_iov].iov_len = sizeof(struct dns_header);
-	n_iov++;
-
-	answer_len = dn_comp(answer, buffer, sizeof(buffer), NULL, NULL);
-	if (answer_len < 1)
-		return;
-
-	blob_for_each_attr(attr, ans_buf.head, rem) {
-		struct dns_answer *a = blob_data(attr);
-
-		iov[n_iov].iov_base = buffer;
-		iov[n_iov].iov_len = answer_len;
-		n_iov++;
-
-		iov[n_iov].iov_base = blob_data(attr);
-		iov[n_iov].iov_len = blob_len(attr);
-		n_iov++;
-
-		DBG(1, "A <- %s %s\n", dns_type_string(be16_to_cpu(a->type)), answer);
-	}
-
-	if (interface_send_packet(iface, to, iov, n_iov) < 0)
-		perror("failed to send answer");
+	dns_packet_init();
+	dns_packet_question(question, type);
+	dns_packet_send(iface, to, true, multicast);
 }
 
 void
@@ -189,24 +201,27 @@ dns_reply_a(struct interface *iface, struct sockaddr *to, int ttl, const char *h
 	struct sockaddr_in *sa;
 	struct sockaddr_in6 *sa6;
 
+	if (!hostname)
+		hostname = mdns_hostname_local;
+
 	getifaddrs(&ifap);
 
-	dns_init_answer();
+	dns_packet_init();
 	for (ifa = ifap; ifa; ifa = ifa->ifa_next) {
 		if (strcmp(ifa->ifa_name, iface->name))
 			continue;
 		if (ifa->ifa_addr->sa_family == AF_INET) {
 			sa = (struct sockaddr_in *) ifa->ifa_addr;
-			dns_add_answer(TYPE_A, (uint8_t *) &sa->sin_addr, 4, ttl);
+			dns_packet_answer(hostname, TYPE_A, (uint8_t *) &sa->sin_addr, 4, ttl);
 		}
 		if (ifa->ifa_addr->sa_family == AF_INET6) {
 			sa6 = (struct sockaddr_in6 *) ifa->ifa_addr;
-			dns_add_answer(TYPE_AAAA, (uint8_t *) &sa6->sin6_addr, 16, ttl);
+			dns_packet_answer(hostname, TYPE_AAAA, (uint8_t *) &sa6->sin6_addr, 16, ttl);
 		}
 	}
-	dns_send_answer(iface, to, hostname ? hostname : mdns_hostname_local);
-
 	freeifaddrs(ifap);
+
+	dns_packet_send(iface, to, 0, 0);
 }
 
 void

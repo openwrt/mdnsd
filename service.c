@@ -78,18 +78,18 @@ service_instance_name(struct service *s)
 }
 
 static void
-service_add_ptr(const char *host, int ttl)
+service_add_ptr(const char *name, const char *host, int ttl)
 {
 	int len = dn_comp(host, mdns_buf, sizeof(mdns_buf), NULL, NULL);
 
 	if (len < 1)
 		return;
 
-	dns_add_answer(TYPE_PTR, mdns_buf, len, ttl);
+	dns_packet_answer(name, TYPE_PTR, mdns_buf, len, ttl);
 }
 
 static void
-service_add_srv(struct service *s, int ttl)
+service_add_srv(const char *name, struct service *s, int ttl)
 {
 	struct dns_srv_data *sd = (struct dns_srv_data *) mdns_buf;
 	int len = sizeof(*sd);
@@ -99,7 +99,7 @@ service_add_srv(struct service *s, int ttl)
 		return;
 
 	sd->port = cpu_to_be16(s->port);
-	dns_add_answer(TYPE_SRV, mdns_buf, len, ttl);
+	dns_packet_answer(name, TYPE_SRV, mdns_buf, len, ttl);
 }
 
 #define TOUT_LOOKUP	60
@@ -132,15 +132,12 @@ service_reply_single(struct interface *iface, struct sockaddr *to, struct servic
 
 	s->t = t;
 
-	dns_init_answer();
-	service_add_ptr(service_instance_name(s), ttl);
-	dns_send_answer(iface, to, service);
-
-	dns_init_answer();
-	service_add_srv(s, ttl);
+	dns_packet_init();
+	service_add_ptr(service, service_instance_name(s), ttl);
+	service_add_srv(host, s, ttl);
 	if (s->txt && s->txt_len)
-		dns_add_answer(TYPE_TXT, (uint8_t *) s->txt, s->txt_len, ttl);
-	dns_send_answer(iface, to, host);
+		dns_packet_answer(host, TYPE_TXT, (uint8_t *) s->txt, s->txt_len, ttl);
+	dns_packet_send(iface, to, 0, 0);
 }
 
 void
@@ -163,16 +160,16 @@ service_announce_services(struct interface *iface, struct sockaddr *to, int ttl)
 	struct service *s;
 	int count = 0;
 
-	dns_init_answer();
+	dns_packet_init();
 	vlist_for_each_element(&announced_services, s, node) {
 		s->t = 0;
 		if (ttl) {
-			service_add_ptr(s->service, ttl);
+			service_add_ptr(C_DNS_SD, s->service, ttl);
 			count++;
 		}
 	}
 	if (count)
-		dns_send_answer(iface, to, C_DNS_SD);
+		dns_packet_send(iface, to, 0, 0);
 }
 
 void
