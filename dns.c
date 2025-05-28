@@ -185,6 +185,14 @@ void dns_packet_send(struct interface *iface, struct sockaddr *to, bool query, i
 		perror("failed to send answer");
 }
 
+void dns_packet_broadcast(void)
+{
+	struct interface *iface;
+
+	vlist_for_each_element(&interfaces, iface, node)
+		dns_packet_send(iface, NULL, 1, -1);
+}
+
 void
 dns_send_question(struct interface *iface, struct sockaddr *to,
 		  const char *question, int type, int multicast)

@@ -143,16 +143,21 @@ void
 cache_update(void)
 {
 	struct cache_service *s;
-	struct interface *iface;
+	int count = 2;
 
-	vlist_for_each_element(&interfaces, iface, node) {
-		dns_send_question(iface, NULL, C_DNS_SD, TYPE_ANY, interface_multicast(iface));
-		dns_send_question(iface, NULL, C_DNS_SD, TYPE_PTR, interface_multicast(iface));
-		avl_for_each_element(&services, s, avl)
-			if (!s->host)
-				dns_send_question(iface, NULL, s->entry, TYPE_PTR,
-						  interface_multicast(iface));
+	dns_packet_init();
+	dns_packet_question(C_DNS_SD, TYPE_ANY);
+	dns_packet_question(C_DNS_SD, TYPE_PTR);
+	avl_for_each_element(&services, s, avl) {
+		dns_packet_question(s->entry, TYPE_PTR);
+		if (++count < 16)
+			continue;
+		dns_packet_broadcast();
+		count = 0;
 	}
+
+	if (count)
+		dns_packet_broadcast();
 }
 
 static struct cache_service*
