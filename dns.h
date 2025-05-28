@@ -77,7 +77,8 @@ void dns_packet_init(void);
 bool dns_packet_question(const char *name, int type);
 void dns_packet_answer(const char *name, int type, const uint8_t *rdata, uint16_t rdlength, int ttl);
 void dns_packet_send(struct interface *iface, struct sockaddr *to, bool query, int multicast);
-void dns_packet_broadcast(void);
+
+void dns_query(const char *name, uint16_t type);
 
 void dns_send_question(struct interface *iface, struct sockaddr *to,
 		       const char *question, int type, int multicast);

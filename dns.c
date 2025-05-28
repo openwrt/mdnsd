@@ -31,6 +31,7 @@
 #include <libubox/uloop.h>
 #include <libubox/usock.h>
 #include <libubox/utils.h>
+#include <libubox/avl-cmp.h>
 
 #include "announce.h"
 #include "util.h"
@@ -39,6 +40,15 @@
 #include "service.h"
 #include "interface.h"
 
+#define QUERY_BATCH_SIZE	16
+
+struct query_entry {
+	struct avl_node node;
+	uint16_t type;
+	char name[];
+};
+
+static AVL_TREE(queries, avl_strcmp, true, NULL);
 static char name_buffer[MAX_NAME_LEN + 1];
 
 static struct {
@@ -185,7 +195,7 @@ void dns_packet_send(struct interface *iface, struct sockaddr *to, bool query, i
 		perror("failed to send answer");
 }
 
-void dns_packet_broadcast(void)
+static void dns_packet_broadcast(void)
 {
 	struct interface *iface;
 
@@ -200,6 +210,58 @@ dns_send_question(struct interface *iface, struct sockaddr *to,
 	dns_packet_init();
 	dns_packet_question(question, type);
 	dns_packet_send(iface, to, true, multicast);
+}
+
+static void
+dns_query_pending(struct uloop_timeout *t)
+{
+	struct query_entry *e, *tmp;
+	int count = 0;
+
+	dns_packet_init();
+	avl_remove_all_elements(&queries, e, node, tmp) {
+		dns_packet_question(e->name, e->type);
+		free(e);
+
+		if (++count < QUERY_BATCH_SIZE)
+			continue;
+
+		count = 0;
+		dns_packet_broadcast();
+	}
+
+	if (count)
+		dns_packet_broadcast();
+}
+
+void dns_query(const char *name, uint16_t type)
+{
+	static struct uloop_timeout timer = {
+		.cb = dns_query_pending
+	};
+	struct query_entry *e;
+
+	e = avl_find_element(&queries, name, e, node);
+	while (e) {
+		if (e->type == type)
+			return;
+
+		e = avl_next_element(e, node);
+		if (strcmp(e->name, name) != 0)
+			break;
+	}
+
+	e = calloc(1, sizeof(*e) + strlen(name) + 1);
+	e->type = type;
+	e->node.key = e->name;
+	strcpy(e->name, name);
+	avl_insert(&queries, &e->node);
+
+	if (queries.count > QUERY_BATCH_SIZE)
+		timer.cb(&timer);
+
+	if (!timer.pending)
+		uloop_timeout_set(&timer, 100);
 }
 
 void

@@ -143,26 +143,17 @@ void
 cache_update(void)
 {
 	struct cache_service *s;
-	int count = 2;
 
-	dns_packet_init();
-	dns_packet_question(C_DNS_SD, TYPE_ANY);
-	dns_packet_question(C_DNS_SD, TYPE_PTR);
+	dns_query(C_DNS_SD, TYPE_ANY);
+	dns_query(C_DNS_SD, TYPE_PTR);
 	avl_for_each_element(&services, s, avl) {
 		if (s->host) {
-			dns_packet_question(s->host, TYPE_A);
-			dns_packet_question(s->host, TYPE_AAAA);
+			dns_query(s->host, TYPE_A);
+			dns_query(s->host, TYPE_AAAA);
 		} else {
-			dns_packet_question(s->entry, TYPE_PTR);
+			dns_query(s->entry, TYPE_PTR);
 		}
-		if (++count < 16)
-			continue;
-		dns_packet_broadcast();
-		count = 0;
 	}
-
-	if (count)
-		dns_packet_broadcast();
 }
 
 static struct cache_service*
@@ -203,14 +194,12 @@ cache_service(struct interface *iface, char *entry, int hlen, int ttl)
 		s->avl.key = type;
 	avl_insert(&services, &s->avl);
 
-	dns_packet_init();
 	if (hlen) {
-		dns_packet_question(s->host, TYPE_A);
-		dns_packet_question(s->host, TYPE_AAAA);
+		dns_query(s->host, TYPE_A);
+		dns_query(s->host, TYPE_AAAA);
 	} else {
-		dns_packet_question(entry, TYPE_PTR);
+		dns_query(entry, TYPE_PTR);
 	}
-	dns_packet_broadcast();
 
 	return s;
 }
