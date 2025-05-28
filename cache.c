@@ -76,6 +76,18 @@ cache_is_expired(time_t t, uint32_t ttl, int frac)
 }
 
 static void
+cache_refresh_service(struct cache_service *s)
+{
+	dns_query(s->entry, TYPE_PTR);
+
+	if (!s->host)
+		return;
+
+	dns_query(s->host, TYPE_A);
+	dns_query(s->host, TYPE_AAAA);
+}
+
+static void
 cache_gc_timer(struct uloop_timeout *timeout)
 {
 	struct cache_record *r, *p;
@@ -108,7 +120,7 @@ cache_gc_timer(struct uloop_timeout *timeout)
 			continue;
 		}
 		s->refresh += 50;
-		dns_send_question(s->iface, NULL, s->entry, TYPE_PTR, 0);
+		cache_refresh_service(s);
 	}
 
 	uloop_timeout_set(timeout, 10000);
@@ -146,14 +158,8 @@ cache_update(void)
 
 	dns_query(C_DNS_SD, TYPE_ANY);
 	dns_query(C_DNS_SD, TYPE_PTR);
-	avl_for_each_element(&services, s, avl) {
-		if (s->host) {
-			dns_query(s->host, TYPE_A);
-			dns_query(s->host, TYPE_AAAA);
-		} else {
-			dns_query(s->entry, TYPE_PTR);
-		}
-	}
+	avl_for_each_element(&services, s, avl)
+		cache_refresh_service(s);
 }
 
 static struct cache_service*
@@ -194,12 +200,7 @@ cache_service(struct interface *iface, char *entry, int hlen, int ttl)
 		s->avl.key = type;
 	avl_insert(&services, &s->avl);
 
-	if (hlen) {
-		dns_query(s->host, TYPE_A);
-		dns_query(s->host, TYPE_AAAA);
-	} else {
-		dns_query(entry, TYPE_PTR);
-	}
+	cache_refresh_service(s);
 
 	return s;
 }
