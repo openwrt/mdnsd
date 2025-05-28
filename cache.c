@@ -149,7 +149,12 @@ cache_update(void)
 	dns_packet_question(C_DNS_SD, TYPE_ANY);
 	dns_packet_question(C_DNS_SD, TYPE_PTR);
 	avl_for_each_element(&services, s, avl) {
-		dns_packet_question(s->entry, TYPE_PTR);
+		if (s->host) {
+			dns_packet_question(s->host, TYPE_A);
+			dns_packet_question(s->host, TYPE_AAAA);
+		} else {
+			dns_packet_question(s->entry, TYPE_PTR);
+		}
 		if (++count < 16)
 			continue;
 		dns_packet_broadcast();
@@ -178,7 +183,7 @@ cache_service(struct interface *iface, char *entry, int hlen, int ttl)
 
 	s = calloc_a(sizeof(*s),
 		&entry_buf, strlen(entry) + 1,
-		&host_buf, hlen ? hlen + 1 : 0);
+		&host_buf, hlen ? hlen + sizeof(".local") + 1 : 0);
 
 	s->avl.key = s->entry = strcpy(entry_buf, entry);
 	s->time = monotonic_time();
@@ -186,8 +191,10 @@ cache_service(struct interface *iface, char *entry, int hlen, int ttl)
 	s->iface = iface;
 	s->refresh = 50;
 
-	if (hlen)
+	if (hlen) {
 		s->host = strncpy(host_buf, s->entry, hlen);
+		strcpy(host_buf + hlen, ".local");
+	}
 
 	type = strstr(entry_buf, "._");
 	if (type)
@@ -196,11 +203,14 @@ cache_service(struct interface *iface, char *entry, int hlen, int ttl)
 		s->avl.key = type;
 	avl_insert(&services, &s->avl);
 
-	if (hlen)
-		return s;
-
-	vlist_for_each_element(&interfaces, iface, node)
-		dns_send_question(iface, NULL, entry, TYPE_PTR, interface_multicast(iface));
+	dns_packet_init();
+	if (hlen) {
+		dns_packet_question(s->host, TYPE_A);
+		dns_packet_question(s->host, TYPE_AAAA);
+	} else {
+		dns_packet_question(entry, TYPE_PTR);
+	}
+	dns_packet_broadcast();
 
 	return s;
 }
