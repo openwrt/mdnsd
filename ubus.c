@@ -28,8 +28,8 @@
 #include "interface.h"
 
 static struct ubus_auto_conn conn;
+static struct udebug_ubus udebug;
 static struct blob_buf b;
-static struct ubus_subscriber udebug_sub;
 
 static int
 umdns_reload(struct ubus_context *ctx, struct ubus_object *obj,
@@ -369,87 +369,16 @@ static struct ubus_object umdns_object = {
 	.n_methods = ARRAY_SIZE(umdns_methods),
 };
 
-static struct blob_attr *
-find_attr(struct blob_attr *attr, const char *name, enum blobmsg_type type)
-{
-	struct blobmsg_policy policy = { name, type };
-	struct blob_attr *ret;
-
-	if (!attr)
-		return NULL;
-
-	blobmsg_parse_attr(&policy, 1, &ret, attr);
-
-	return ret;
-}
-
-static void
-umdns_udebug_config_cb(struct blob_attr *data)
-{
-	enum {
-		CFG_ATTR_ENABLED,
-		__CFG_ATTR_MAX
-	};
-	static const struct blobmsg_policy policy[__CFG_ATTR_MAX] = {
-		[CFG_ATTR_ENABLED] = { "enabled", BLOBMSG_TYPE_STRING },
-	};
-	struct blob_attr *tb[__CFG_ATTR_MAX];
-	bool en;
-
-	data = find_attr(data, "service", BLOBMSG_TYPE_TABLE);
-	data = find_attr(data, "umdns", BLOBMSG_TYPE_TABLE);
-	if (!data)
-		return;
-
-	blobmsg_parse_attr(policy, __CFG_ATTR_MAX, tb, data);
-	if (!tb[CFG_ATTR_ENABLED])
-		return;
-
-	en = !!atoi(blobmsg_get_string(tb[CFG_ATTR_ENABLED]));
-	umdns_udebug_set_enabled(en);
-}
-
-static int
-umdns_udebug_notify_cb(struct ubus_context *ctx, struct ubus_object *obj,
-			struct ubus_request_data *req, const char *method,
-			struct blob_attr *msg)
-{
-	umdns_udebug_config_cb(msg);
-
-	return 0;
-}
-
-static void
-umdns_udebug_req_cb(struct ubus_request *req, int type, struct blob_attr *msg)
-{
-	umdns_udebug_config_cb(msg);
-}
-
-static bool
-umdns_udebug_sub_cb(struct ubus_context *ctx, struct ubus_subscriber *sub,
-		     const char *path)
-{
-	return !strcmp(path, "udebug");
-}
-
-
 static void
 ubus_connect_handler(struct ubus_context *ctx)
 {
-	uint32_t id;
 	int ret;
 
 	ret = ubus_add_object(ctx, &umdns_object);
 	if (ret)
 		fprintf(stderr, "Failed to add object: %s\n", ubus_strerror(ret));
 
-	udebug_sub.cb = umdns_udebug_notify_cb;
-	udebug_sub.new_obj_cb = umdns_udebug_sub_cb;
-	ubus_register_subscriber(&conn.ctx, &udebug_sub);
-	if (ubus_lookup_id(&conn.ctx, "udebug", &id) == 0) {
-		ubus_subscribe(&conn.ctx, &udebug_sub, id);
-		ubus_invoke(&conn.ctx, id, "get_config", NULL, umdns_udebug_req_cb, NULL, 1000);
-	}
+	udebug_ubus_init(&udebug, ctx, "umdns", umdns_udebug_config);
 }
 
 void

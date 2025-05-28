@@ -14,7 +14,11 @@
 #ifndef _UBUS_H__
 #define _UBUS_H__
 
+#include <udebug.h>
+
 extern void ubus_startup(void);
 extern int ubus_service_list(ubus_data_handler_t cb);
+void umdns_udebug_config(struct udebug_ubus *ctx, struct blob_attr *data,
+			 bool enabled);
 
 #endif

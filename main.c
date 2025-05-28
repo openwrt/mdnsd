@@ -26,7 +26,6 @@
 #include <netinet/in.h>
 #include <arpa/nameser.h>
 
-#include <udebug.h>
 #include <libubus.h>
 #include <libubox/uloop.h>
 
@@ -42,18 +41,30 @@ int cfg_proto = 0;
 int cfg_no_subnet = 0;
 
 static struct udebug ud;
-static struct udebug_buf udb;
-static bool udebug_enabled;
+static struct udebug_buf udb_log;
+static const struct udebug_buf_meta meta_log = {
+	.name = "umdns_log",
+	.format = UDEBUG_FORMAT_STRING,
+};
+
+static struct udebug_ubus_ring rings[] = {
+	{
+		.buf = &udb_log,
+		.meta = &meta_log,
+		.default_entries = 1024,
+		.default_size = 64 * 1024,
+	}
+};
 
 static void
 umdns_udebug_vprintf(const char *format, va_list ap)
 {
-	if (!udebug_enabled)
+	if (!udebug_buf_valid(&udb_log))
 		return;
 
-	udebug_entry_init(&udb);
-	udebug_entry_vprintf(&udb, format, ap);
-	udebug_entry_add(&udb);
+	udebug_entry_init(&udb_log);
+	udebug_entry_vprintf(&udb_log, format, ap);
+	udebug_entry_add(&udb_log);
 }
 
 void umdns_udebug_printf(const char *format, ...)
@@ -65,27 +76,11 @@ void umdns_udebug_printf(const char *format, ...)
 	va_end(ap);
 }
 
-void umdns_udebug_set_enabled(bool val)
+
+void umdns_udebug_config(struct udebug_ubus *ctx, struct blob_attr *data,
+			 bool enabled)
 {
-	static const struct udebug_buf_meta meta = {
-		.name = "umdns_log",
-		.format = UDEBUG_FORMAT_STRING,
-	};
-
-	if (udebug_enabled == val)
-		return;
-
-	udebug_enabled = val;
-	if (!val) {
-		udebug_buf_free(&udb);
-		udebug_free(&ud);
-		return;
-	}
-
-	udebug_init(&ud);
-	udebug_auto_connect(&ud, NULL);
-	udebug_buf_init(&udb, 1024, 64 * 1024);
-	udebug_buf_add(&ud, &udb, &meta);
+	udebug_ubus_apply_config(&ud, rings, ARRAY_SIZE(rings), data, enabled);
 }
 
 static void
@@ -100,6 +95,8 @@ main(int argc, char **argv)
 	int ch, ttl;
 
 	uloop_init();
+	udebug_init(&ud);
+	udebug_auto_connect(&ud, NULL);
 
 	while ((ch = getopt(argc, argv, "t:i:d46n")) != -1) {
 		switch (ch) {
