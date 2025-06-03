@@ -61,6 +61,14 @@ static struct dns_question *pkt_q[32];
 static unsigned int pkt_n_q;
 static unsigned char *dnptrs[255];
 
+static struct dns_header*
+dns_consume_header(uint8_t **data, int *len);
+static char *
+dns_consume_name(const uint8_t *base, int blen, uint8_t **data, int *len);
+static struct dns_question*
+dns_consume_question(uint8_t **data, int *len);
+
+
 const char*
 dns_type_string(uint16_t type)
 {
@@ -150,19 +158,51 @@ bool dns_packet_question(const char *name, int type)
 	return true;
 }
 
-void dns_packet_answer(const char *name, int type, const uint8_t *rdata, uint16_t rdlength, int ttl)
+void dns_packet_answer(const char *name, int type, const uint8_t *rdata, uint16_t rdlength, int ttl,
+                       uint8_t *orig_buffer, int orig_len)
 {
 	struct dns_answer *a;
 
+	// Set response flag
 	pkt.h.flags |= cpu_to_be16(0x8400);
 
+	// Reconstruct original question section (only once)
+	if (orig_buffer && orig_len > 0 && pkt.h.questions == 0) {
+		const struct dns_header *orig_h;
+		uint8_t *ptr = orig_buffer;
+		int len = orig_len;
+
+		orig_h = dns_consume_header(&ptr, &len);
+		if (orig_h) {
+			pkt.h.id = cpu_to_be16(orig_h->id);
+
+			uint16_t q_count = be16_to_cpu(orig_h->questions);
+			while (q_count-- > 0 && len > 0) {
+				char *qname = dns_consume_name(orig_buffer, orig_len, &ptr, &len);
+				if (!qname || len < (int)sizeof(struct dns_question))
+					break;
+
+				struct dns_question *q = dns_consume_question(&ptr, &len);
+				if (!q)
+					break;
+
+				dns_packet_question(qname, q->type);
+			}
+		}
+	}
+
+	// Add the answer
 	a = dns_packet_record_add(sizeof(*a) + rdlength, name);
+	if (!a)
+		return;
+
 	memset(a, 0, sizeof(*a));
 	a->type = cpu_to_be16(type);
-	a->class = cpu_to_be16(1);
+	a->class = cpu_to_be16(1); // IN class
 	a->ttl = cpu_to_be32(ttl);
 	a->rdlength = cpu_to_be16(rdlength);
 	memcpy(a + 1, rdata, rdlength);
+
 	DBG(1, "A <- %s %s\n", dns_type_string(be16_to_cpu(a->type)), name);
 
 	pkt.h.answers += cpu_to_be16(1);
@@ -266,7 +306,7 @@ void dns_query(const char *name, uint16_t type)
 }
 
 void
-dns_reply_a(struct interface *iface, struct sockaddr *to, int ttl, const char *hostname)
+dns_reply_a(struct interface *iface, struct sockaddr *to, int ttl, const char *hostname, uint8_t *orig_buffer, int orig_len)
 {
 	struct ifaddrs *ifap, *ifa;
 	struct sockaddr_in *sa;
@@ -283,11 +323,11 @@ dns_reply_a(struct interface *iface, struct sockaddr *to, int ttl, const char *h
 			continue;
 		if (ifa->ifa_addr->sa_family == AF_INET) {
 			sa = (struct sockaddr_in *) ifa->ifa_addr;
-			dns_packet_answer(hostname, TYPE_A, (uint8_t *) &sa->sin_addr, 4, ttl);
+			dns_packet_answer(hostname, TYPE_A, (uint8_t *) &sa->sin_addr, 4, ttl, orig_buffer, orig_len);
 		}
 		if (ifa->ifa_addr->sa_family == AF_INET6) {
 			sa6 = (struct sockaddr_in6 *) ifa->ifa_addr;
-			dns_packet_answer(hostname, TYPE_AAAA, (uint8_t *) &sa6->sin6_addr, 16, ttl);
+			dns_packet_answer(hostname, TYPE_AAAA, (uint8_t *) &sa6->sin6_addr, 16, ttl, orig_buffer, orig_len);
 		}
 	}
 	freeifaddrs(ifap);
@@ -301,7 +341,7 @@ dns_reply_a_additional(struct interface *iface, struct sockaddr *to, int ttl)
 	struct hostname *h;
 
 	vlist_for_each_element(&hostnames, h, node)
-		dns_reply_a(iface, to, ttl, h->hostname);
+		dns_reply_a(iface, to, ttl, h->hostname, NULL, 0);
 }
 
 static int
@@ -484,7 +524,8 @@ match_ip_addresses(char *reverse_ip, char *intf_ip)
 }
 
 static void
-dns_reply_reverse_ip6_mapping(struct interface *iface, struct sockaddr *to, int ttl, char *name, char *reverse_ip)
+dns_reply_reverse_ip6_mapping(struct interface *iface, struct sockaddr *to, int ttl, char *name, char *reverse_ip,
+				uint8_t *orig_buffer, int orig_len)
 {
 	struct ifaddrs *ifap, *ifa;
 	struct sockaddr_in6 *sa6;
@@ -509,7 +550,7 @@ dns_reply_reverse_ip6_mapping(struct interface *iface, struct sockaddr *to, int 
 				if (len < 1)
 					continue;
 
-				dns_packet_answer(name, TYPE_PTR, buffer, len, ttl);
+				dns_packet_answer(name, TYPE_PTR, buffer, len, ttl, orig_buffer, orig_len);
 			}
 		}
 	}
@@ -519,7 +560,8 @@ dns_reply_reverse_ip6_mapping(struct interface *iface, struct sockaddr *to, int 
 }
 
 static void
-dns_reply_reverse_ip4_mapping(struct interface *iface, struct sockaddr *to, int ttl, char *name, char *reverse_ip)
+dns_reply_reverse_ip4_mapping(struct interface *iface, struct sockaddr *to, int ttl, char *name, char *reverse_ip,
+				uint8_t *orig_buffer, int orig_len)
 {
 	struct ifaddrs *ifap, *ifa;
 	struct sockaddr_in *sa;
@@ -544,7 +586,7 @@ dns_reply_reverse_ip4_mapping(struct interface *iface, struct sockaddr *to, int 
 				if (len < 1)
 					continue;
 
-				dns_packet_answer(name, TYPE_PTR, buffer, len, ttl);
+				dns_packet_answer(name, TYPE_PTR, buffer, len, ttl, orig_buffer, orig_len);
 			}
 		}
 	}
@@ -572,7 +614,8 @@ is_reverse_dns_query(const char *name, const char *suffix)
 }
 
 static void
-parse_question(struct interface *iface, struct sockaddr *from, char *name, struct dns_question *q)
+parse_question(struct interface *iface, struct sockaddr *from, char *name, struct dns_question *q,
+		uint8_t *orig_buffer, int orig_len, uint16_t port)
 {
 	int is_unicast = (q->class & CLASS_UNICAST) != 0;
 	struct sockaddr *to = NULL;
@@ -580,10 +623,17 @@ parse_question(struct interface *iface, struct sockaddr *from, char *name, struc
 	char *host, *host6;
 
 	/* TODO: Multicast if more than one quarter of TTL has passed */
-	if (is_unicast) {
+	if (is_unicast || port != MCAST_PORT) {
 		to = from;
 		if (interface_multicast(iface))
 			iface = interface_get(iface->name, iface->type | SOCKTYPE_BIT_UNICAST);
+	} else {
+		/* if the query is from multicast port, no need for original buffer
+		 * while responding as per rfc 6762, section 6:
+		 * Multicast DNS responses MUST NOT contain any questions in the
+		 * Question Section. */
+		orig_buffer = NULL;
+		orig_len = 0;
 	}
 
 	DBG(1, "Q -> %s %s\n", dns_type_string(q->type), name);
@@ -591,9 +641,9 @@ parse_question(struct interface *iface, struct sockaddr *from, char *name, struc
 	switch (q->type) {
 	case TYPE_ANY:
 		if (!strcasecmp(name, mdns_hostname_local)) {
-			dns_reply_a(iface, to, announce_ttl, NULL);
+			dns_reply_a(iface, to, announce_ttl, NULL, orig_buffer, orig_len);
 			dns_reply_a_additional(iface, to, announce_ttl);
-			service_reply(iface, to, NULL, NULL, announce_ttl, is_unicast);
+			service_reply(iface, to, NULL, NULL, announce_ttl, is_unicast, orig_buffer, orig_len);
 		}
 		break;
 
@@ -603,7 +653,7 @@ parse_question(struct interface *iface, struct sockaddr *from, char *name, struc
 			char name_buf[256];
 			strcpy(name_buf, name);
 			*host = '\0';
-			dns_reply_reverse_ip4_mapping(iface, to, announce_ttl, name_buf, name);
+			dns_reply_reverse_ip4_mapping(iface, to, announce_ttl, name_buf, name, orig_buffer, orig_len);
 			break;
 		}
 
@@ -612,22 +662,22 @@ parse_question(struct interface *iface, struct sockaddr *from, char *name, struc
 			char name_buf6[256];
 			strcpy(name_buf6, name);
 			*host6 = '\0';
-			dns_reply_reverse_ip6_mapping(iface, to, announce_ttl, name_buf6, name);
+			dns_reply_reverse_ip6_mapping(iface, to, announce_ttl, name_buf6, name, orig_buffer, orig_len);
 			break;
 		}
 
 		if (!strcasecmp(name, C_DNS_SD)) {
-			service_announce_services(iface, to, announce_ttl);
+			service_announce_services(iface, to, announce_ttl, orig_buffer, orig_len);
 		} else {
 			if (name[0] == '_') {
-				service_reply(iface, to, NULL, name, announce_ttl, is_unicast);
+				service_reply(iface, to, NULL, name, announce_ttl, is_unicast, orig_buffer, orig_len);
 			} else {
 				/* First dot separates instance name from the rest */
 				char *dot = strchr(name, '.');
 
 				if (dot) {
 					*dot = '\0';
-					service_reply(iface, to, name, dot + 1, announce_ttl, is_unicast);
+					service_reply(iface, to, name, dot + 1, announce_ttl, is_unicast, orig_buffer, orig_len);
 					*dot = '.';
 				}
 			}
@@ -640,13 +690,13 @@ parse_question(struct interface *iface, struct sockaddr *from, char *name, struc
 		if (host)
 			*host = '\0';
 		if (!strcasecmp(umdns_host_label, name)) {
-			dns_reply_a(iface, to, announce_ttl, NULL);
+			dns_reply_a(iface, to, announce_ttl, NULL, orig_buffer, orig_len);
 		} else {
 			if (host)
 				*host = '.';
 			vlist_for_each_element(&hostnames, h, node)
 				if (!strcasecmp(h->hostname, name))
-					dns_reply_a(iface, to, announce_ttl, h->hostname);
+					dns_reply_a(iface, to, announce_ttl, h->hostname, NULL, 0);
 		}
 		break;
 	};
@@ -659,15 +709,17 @@ dns_handle_packet(struct interface *iface, struct sockaddr *from, uint16_t port,
 	uint8_t *b = buffer;
 	int rlen = len;
 
+	uint8_t orig_buffer[len];
+
+	/* make a copy of the original buffer since it might be needed to construct the answer
+	 * in case the query is received from a one-shot multicast dns querier */
+	memcpy(orig_buffer, buffer, len);
+
 	h = dns_consume_header(&b, &rlen);
 	if (!h) {
 		fprintf(stderr, "dropping: bad header\n");
 		return;
 	}
-
-	if (h->questions && !interface_multicast(iface) && port != MCAST_PORT)
-		/* silently drop unicast questions that dont originate from port 5353 */
-		return;
 
 	while (h->questions-- > 0) {
 		char *name = dns_consume_name(buffer, len, &b, &rlen);
@@ -685,7 +737,7 @@ dns_handle_packet(struct interface *iface, struct sockaddr *from, uint16_t port,
 		}
 
 		if (!(h->flags & FLAG_RESPONSE))
-			parse_question(iface, from, name, q);
+			parse_question(iface, from, name, q, orig_buffer, len, port);
 	}
 
 	if (!(h->flags & FLAG_RESPONSE))
