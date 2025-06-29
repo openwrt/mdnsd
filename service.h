@@ -42,8 +42,8 @@ extern struct vlist_tree announced_services;
 
 extern void service_init(int announce);
 extern void service_cleanup(void);
-extern void service_reply(struct interface *iface, struct sockaddr *to, const char *instance, const char *service_domain, int ttl, int force);
-extern void service_announce_services(struct interface *iface, struct sockaddr *to, int ttl);
+extern void service_reply(struct interface *iface, struct sockaddr *to, const char *instance, const char *service_domain, int ttl, int force, bool append);
+extern void service_announce_services(struct interface *iface, struct sockaddr *to, int ttl, bool append);
 extern void service_update(struct vlist_tree *tree, struct vlist_node *node_new, struct vlist_node *node_old);
 
 #endif
