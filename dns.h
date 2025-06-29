@@ -82,8 +82,8 @@ void dns_query(const char *name, uint16_t type);
 
 void dns_send_question(struct interface *iface, struct sockaddr *to,
 		       const char *question, int type, int multicast);
-void dns_reply_a(struct interface *iface, struct sockaddr *to, int ttl, const char *hostname);
-void dns_reply_a_additional(struct interface *iface, struct sockaddr *to, int ttl);
+void dns_reply_a(struct interface *iface, struct sockaddr *to, int ttl, const char *hostname, bool append);
+void dns_reply_a_additional(struct interface *iface, struct sockaddr *to, int ttl, bool append);
 const char* dns_type_string(uint16_t type);
 void dns_handle_packet(struct interface *iface, struct sockaddr *s, uint16_t port, uint8_t *buf, int len);
 
