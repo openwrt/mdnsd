@@ -75,7 +75,7 @@ extern int cfg_no_subnet;
 
 void dns_packet_init(void);
 bool dns_packet_question(const char *name, int type);
-void dns_packet_answer(const char *name, int type, const uint8_t *rdata, uint16_t rdlength, int ttl);
+bool dns_packet_answer(const char *name, int type, const uint8_t *rdata, uint16_t rdlength, int ttl);
 void dns_packet_send(struct interface *iface, struct sockaddr *to, bool query, int multicast);
 
 void dns_query(const char *name, uint16_t type);
