@@ -150,13 +150,18 @@ bool dns_packet_question(const char *name, int type)
 	return true;
 }
 
-void dns_packet_answer(const char *name, int type, const uint8_t *rdata, uint16_t rdlength, int ttl)
+bool dns_packet_answer(const char *name, int type, const uint8_t *rdata, uint16_t rdlength, int ttl)
 {
 	struct dns_answer *a;
 
 	pkt.h.flags |= cpu_to_be16(0x8400);
 
 	a = dns_packet_record_add(sizeof(*a) + rdlength, name);
+	if (!a) {
+		DBG(0, "Not enough room for answer %d\n", be16_to_cpu(pkt.h.answers)+1);
+		return false;
+	}
+
 	memset(a, 0, sizeof(*a));
 	a->type = cpu_to_be16(type);
 	a->class = cpu_to_be16(1);
@@ -166,6 +171,7 @@ void dns_packet_answer(const char *name, int type, const uint8_t *rdata, uint16_
 	DBG(1, "A <- %s %s\n", dns_type_string(be16_to_cpu(a->type)), name);
 
 	pkt.h.answers += cpu_to_be16(1);
+	return true;
 }
 
 static void dns_question_set_multicast(struct dns_question *q, bool val)
