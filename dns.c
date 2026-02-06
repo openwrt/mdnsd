@@ -475,9 +475,13 @@ match_ipv6_addresses(char *reverse_ip, struct in6_addr *intf_ip)
 static int
 match_ip_addresses(char *reverse_ip, char *intf_ip)
 {
-	int ip1[4], ip2[4];
+	int ip1[4], ip2[4], res;
+	char c;
 
-	sscanf(reverse_ip, "%d.%d.%d.%d", &ip1[3], &ip1[2], &ip1[1], &ip1[0]);
+	res = sscanf(reverse_ip, "%d.%d.%d.%d%c", &ip1[3], &ip1[2], &ip1[1], &ip1[0], &c);
+	if (res != 4)
+		return 0;
+
 	sscanf(intf_ip, "%d.%d.%d.%d", &ip2[0], &ip2[1], &ip2[2], &ip2[3]);
 
 	int i;
