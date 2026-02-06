@@ -599,6 +599,10 @@ parse_question(struct interface *iface, struct sockaddr *from, char *name, struc
 
 	case TYPE_PTR:
 		if (is_reverse_dns_query(name, ".in-addr.arpa")) {
+			if (strlen(name) < MIN_PTR_NAME_LEN ||
+			    strlen(name) > MAX_PTR_NAME_LEN)
+				break;
+
 			host = strstr(name, ".in-addr.arpa");
 			char name_buf[256];
 			strcpy(name_buf, name);
@@ -608,6 +612,9 @@ parse_question(struct interface *iface, struct sockaddr *from, char *name, struc
 		}
 
 		if (is_reverse_dns_query(name, ".ip6.arpa")) {
+			if (strlen(name) != MAX_PTR6_NAME_LEN)
+				break;
+
 			host6 = strstr(name, ".ip6.arpa");
 			char name_buf6[256];
 			strcpy(name_buf6, name);

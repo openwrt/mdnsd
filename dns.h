@@ -40,6 +40,13 @@
 #define MAX_NAME_LEN		8096
 #define MAX_DATA_LEN		8096
 
+/* 4.3.2.1.in-addr.arpa */
+#define MIN_PTR_NAME_LEN	20
+/* 123.123.123.123.in-addr.arpa */
+#define MAX_PTR_NAME_LEN	28
+/* .e.d.c.b.a.9.8.7.6.5.4.3.2.1.0.f.e.d.c.b.a.9.8.7.6.5.4.3.2.1.0.ip6.arpa */
+#define MAX_PTR6_NAME_LEN	72
+
 #define C_DNS_SD		"_services._dns-sd._udp.local"
 
 struct dns_header {
