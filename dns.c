@@ -446,8 +446,13 @@ match_ipv6_addresses(char *reverse_ip, struct in6_addr *intf_ip)
 	int i = 0, j = 0, idx = 0;
 	char temp_ip[INET6_ADDRSTRLEN] = "";
 	struct in6_addr buf;
+	bool dot = false;
 
 	for (i = strlen(reverse_ip) - 1; i >= 0; i--) {
+		if ((reverse_ip[i] == '.') != dot)
+			return 0;
+		dot = !dot;
+
 		if (reverse_ip[i] == '.')
 			continue;
 
