@@ -452,14 +452,21 @@ match_ipv6_addresses(char *reverse_ip, struct in6_addr *intf_ip)
 			continue;
 
 		if (j == 4) {
+			if (idx == sizeof temp_ip - 1)
+				break;
 			temp_ip[idx] = ':';
 			idx++;
 			j = 0;
 		}
+		
+		if (idx == sizeof temp_ip - 1)
+			break;
 		temp_ip[idx] = reverse_ip[i];
 		idx++;
 		j++;
 	}
+
+	temp_ip[idx] = '\0';
 
 	if (inet_pton(AF_INET6, temp_ip, &buf) <= 0)
 		return 0;
