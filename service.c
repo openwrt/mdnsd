@@ -89,7 +89,7 @@ service_add_ptr(const char *name, const char *host, int ttl)
 }
 
 static void
-service_add_srv(const char *name, struct service *s, int ttl)
+service_add_srv(const char *name, struct service *s, int ttl, int answer)
 {
 	struct dns_srv_data *sd = (struct dns_srv_data *) mdns_buf;
 	int len = sizeof(*sd);
@@ -99,7 +99,10 @@ service_add_srv(const char *name, struct service *s, int ttl)
 		return;
 
 	sd->port = cpu_to_be16(s->port);
-	dns_packet_answer(name, TYPE_SRV, mdns_buf, len, ttl);
+	if (answer)
+		dns_packet_answer(name, TYPE_SRV, mdns_buf, len, ttl);
+	else
+		dns_packet_additional(name, TYPE_SRV, mdns_buf, len, ttl);
 }
 
 #define TOUT_LOOKUP	60
@@ -118,29 +121,37 @@ service_timeout(struct service *s)
 }
 
 static void
-service_reply_single(struct interface *iface, struct sockaddr *to, struct service *s, int ttl, int force)
+service_reply_single(struct interface *iface, struct sockaddr *to, struct service *s, int ttl, int force, uint16_t qtype)
 {
 	const char *host = service_instance_name(s);
 	char *service = strstr(host, "._");
-	time_t t = service_timeout(s);
+	time_t t = force ? 0 : service_timeout(s);
 
-	if (!force && (!s->active || !service || !t))
+	if ((!force && (!s->active || !t)) || !service)
 		return;
 
 	service++;
 
-	s->t = t;
+	if (t)
+		s->t = t;
 
 	dns_packet_init();
-	service_add_ptr(service, service_instance_name(s), ttl);
-	service_add_srv(host, s, ttl);
-	if (s->txt && s->txt_len)
+	if (qtype == TYPE_ANY || qtype == TYPE_PTR)
+		service_add_ptr(service, host, ttl);
+	if (qtype == TYPE_ANY || qtype == TYPE_SRV)
+		service_add_srv(host, s, ttl, 1);
+	if (s->txt && s->txt_len && (qtype == TYPE_ANY || qtype == TYPE_TXT))
 		dns_packet_answer(host, TYPE_TXT, (uint8_t *) s->txt, s->txt_len, ttl);
+	if (qtype == TYPE_PTR) {
+		service_add_srv(host, s, ttl, 0);
+		if (s->txt && s->txt_len)
+			dns_packet_additional(host, TYPE_TXT, (uint8_t *) s->txt, s->txt_len, ttl);
+	}
 	dns_packet_send(iface, to, 0, 0);
 }
 
 void
-service_reply(struct interface *iface, struct sockaddr *to, const char *instance, const char *service_domain, int ttl, int force)
+service_reply(struct interface *iface, struct sockaddr *to, const char *instance, const char *service_domain, int ttl, int force, uint16_t qtype)
 {
 	struct service *s;
 
@@ -149,7 +160,7 @@ service_reply(struct interface *iface, struct sockaddr *to, const char *instance
 			continue;
 		if (service_domain && strcmp(s->service, service_domain))
 			continue;
-		service_reply_single(iface, to, s, ttl, force);
+		service_reply_single(iface, to, s, ttl, force, qtype);
 	}
 }
 
@@ -183,7 +194,7 @@ service_update(struct vlist_tree *tree, struct vlist_node *node_new,
 		if (service_init_announce)
 			vlist_for_each_element(&interfaces, iface, node) {
 				s->t = 0;
-				service_reply_single(iface, NULL, s, announce_ttl, 1);
+				service_reply_single(iface, NULL, s, announce_ttl, 1, TYPE_ANY);
 			}
 		return;
 	}
@@ -191,7 +202,7 @@ service_update(struct vlist_tree *tree, struct vlist_node *node_new,
 	s = container_of(node_old, struct service, node);
 	if (!node_new && service_init_announce)
 		vlist_for_each_element(&interfaces, iface, node)
-			service_reply_single(iface, NULL, s, 0, 1);
+			service_reply_single(iface, NULL, s, 0, 1, TYPE_ANY);
 	free(s);
 }
 
