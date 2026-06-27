@@ -20,6 +20,7 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include <time.h>
+#include <string.h>
 
 #include <libubus.h>
 #include <libubox/uloop.h>
@@ -89,7 +90,7 @@ service_add_ptr(const char *name, const char *host, int ttl)
 }
 
 static void
-service_add_srv(const char *name, struct service *s, int ttl)
+service_add_srv(const char *name, struct service *s, int ttl, int answer)
 {
 	struct dns_srv_data *sd = (struct dns_srv_data *) mdns_buf;
 	int len = sizeof(*sd);
@@ -98,8 +99,12 @@ service_add_srv(const char *name, struct service *s, int ttl)
 	if (len <= sizeof(*sd))
 		return;
 
+	memset(sd, 0, sizeof(*sd));
 	sd->port = cpu_to_be16(s->port);
-	dns_packet_answer(name, TYPE_SRV, mdns_buf, len, ttl);
+	if (answer)
+		dns_packet_answer(name, TYPE_SRV, mdns_buf, len, ttl);
+	else
+		dns_packet_additional(name, TYPE_SRV, mdns_buf, len, ttl);
 }
 
 #define TOUT_LOOKUP	60
@@ -118,29 +123,43 @@ service_timeout(struct service *s)
 }
 
 static void
-service_reply_single(struct interface *iface, struct sockaddr *to, struct service *s, int ttl, int force)
+service_reply_single(struct interface *iface, struct sockaddr *to, struct service *s, int ttl, int force,
+			uint16_t qtype, bool append)
 {
 	const char *host = service_instance_name(s);
 	char *service = strstr(host, "._");
-	time_t t = service_timeout(s);
+	time_t t = force ? 0 : service_timeout(s);
 
-	if (!force && (!s->active || !service || !t))
+	if ((!force && (!s->active || !t)) || !service)
 		return;
 
 	service++;
 
-	s->t = t;
+	if (t)
+		s->t = t;
 
-	dns_packet_init();
-	service_add_ptr(service, service_instance_name(s), ttl);
-	service_add_srv(host, s, ttl);
-	if (s->txt && s->txt_len)
+	if (!append)
+		dns_packet_init();
+
+	if (qtype == TYPE_ANY || qtype == TYPE_PTR)
+		service_add_ptr(service, service_instance_name(s), ttl);
+	if (qtype == TYPE_ANY || qtype == TYPE_SRV)
+		service_add_srv(host, s, ttl, 1);
+	if (s->txt && s->txt_len && (qtype == TYPE_ANY || qtype == TYPE_TXT))
 		dns_packet_answer(host, TYPE_TXT, (uint8_t *) s->txt, s->txt_len, ttl);
-	dns_packet_send(iface, to, 0, 0);
+	if (qtype == TYPE_PTR) {
+		service_add_srv(host, s, ttl, 0);
+		if (s->txt && s->txt_len)
+			dns_packet_additional(host, TYPE_TXT, (uint8_t *) s->txt, s->txt_len, ttl);
+	}
+
+	if (!append)
+		dns_packet_send(iface, to, 0, 0);
 }
 
 void
-service_reply(struct interface *iface, struct sockaddr *to, const char *instance, const char *service_domain, int ttl, int force)
+service_reply(struct interface *iface, struct sockaddr *to, const char *instance, const char *service_domain, int ttl, int force,
+		uint16_t qtype, bool append)
 {
 	struct service *s;
 
@@ -149,17 +168,19 @@ service_reply(struct interface *iface, struct sockaddr *to, const char *instance
 			continue;
 		if (service_domain && strcmp(s->service, service_domain))
 			continue;
-		service_reply_single(iface, to, s, ttl, force);
+		service_reply_single(iface, to, s, ttl, force, qtype, append);
 	}
 }
 
 void
-service_announce_services(struct interface *iface, struct sockaddr *to, int ttl)
+service_announce_services(struct interface *iface, struct sockaddr *to, int ttl, bool append)
 {
 	struct service *s;
 	int count = 0;
 
-	dns_packet_init();
+	if (!append)
+		dns_packet_init();
+
 	vlist_for_each_element(&announced_services, s, node) {
 		s->t = 0;
 		if (ttl) {
@@ -168,7 +189,8 @@ service_announce_services(struct interface *iface, struct sockaddr *to, int ttl)
 		}
 	}
 	if (count)
-		dns_packet_send(iface, to, 0, 0);
+		if (!append)
+			dns_packet_send(iface, to, 0, 0);
 }
 
 void
@@ -183,7 +205,7 @@ service_update(struct vlist_tree *tree, struct vlist_node *node_new,
 		if (service_init_announce)
 			vlist_for_each_element(&interfaces, iface, node) {
 				s->t = 0;
-				service_reply_single(iface, NULL, s, announce_ttl, 1);
+			service_reply_single(iface, NULL, s, announce_ttl, 1, TYPE_ANY, false);
 			}
 		return;
 	}
@@ -191,7 +213,7 @@ service_update(struct vlist_tree *tree, struct vlist_node *node_new,
 	s = container_of(node_old, struct service, node);
 	if (!node_new && service_init_announce)
 		vlist_for_each_element(&interfaces, iface, node)
-			service_reply_single(iface, NULL, s, 0, 1);
+			service_reply_single(iface, NULL, s, 0, 1, TYPE_ANY, false);
 	free(s);
 }
 
@@ -205,14 +227,14 @@ hostname_update(struct vlist_tree *tree, struct vlist_node *node_new,
 	if (!node_old) {
 		h = container_of(node_new, struct hostname, node);
 		vlist_for_each_element(&interfaces, iface, node)
-			dns_reply_a(iface, NULL, announce_ttl, h->hostname);
+			dns_reply_a(iface, NULL, announce_ttl, h->hostname, false);
 		return;
 	}
 
 	h = container_of(node_old, struct hostname, node);
 	if (!node_new)
 		vlist_for_each_element(&interfaces, iface, node)
-			dns_reply_a(iface, NULL, 0, h->hostname);
+			dns_reply_a(iface, NULL, 0, h->hostname, false);
 
 	free(h);
 }
@@ -259,11 +281,11 @@ service_load_blob(struct blob_attr *b)
 
 	n = strlen(blobmsg_name(b));
 	s = calloc_a(sizeof(*s),
-		&d_id, n + 1,
-		&d_hostname, _tb[SERVICE_HOSTNAME] ? strlen(blobmsg_get_string(_tb[SERVICE_HOSTNAME])) + 1 : 0,
-		&d_instance, _tb[SERVICE_INSTANCE] ? strlen(blobmsg_get_string(_tb[SERVICE_INSTANCE])) + 1 : 0,
+		&d_id, (size_t)(n + 1),
+		&d_hostname, _tb[SERVICE_HOSTNAME] ? strlen(blobmsg_get_string(_tb[SERVICE_HOSTNAME])) + 1 : (size_t)0,
+		&d_instance, _tb[SERVICE_INSTANCE] ? strlen(blobmsg_get_string(_tb[SERVICE_INSTANCE])) + 1 : (size_t)0,
 		&d_service, strlen(blobmsg_get_string(_tb[SERVICE_SERVICE])) + 1,
-		&d_txt, txt_len);
+		&d_txt, (size_t)txt_len);
 	if (!s)
 		return;
 

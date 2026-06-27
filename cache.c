@@ -204,7 +204,7 @@ cache_service(struct interface *iface, char *entry, size_t hlen, int ttl)
 
 	s = calloc_a(sizeof(*s),
 		&entry_buf, strlen(entry) + 1,
-		&host_buf, hlen ? hlen + sizeof(".local") + 1 : 0);
+		&host_buf, hlen ? hlen + sizeof(".local") + 1 : (size_t)0);
 	if (!s)
 		return NULL;
 
@@ -405,8 +405,8 @@ void cache_answer(struct interface *iface, struct sockaddr *from, uint8_t *base,
 
 	r = calloc_a(sizeof(*r),
 		&name_buf, strlen(name) + 1,
-		&txt_ptr, tlen,
-		&rdata_ptr, dlen);
+		&txt_ptr, (size_t)tlen,
+		&rdata_ptr, (size_t)dlen);
 	if (!r)
 		return;
 
