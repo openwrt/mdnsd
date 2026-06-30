@@ -20,6 +20,7 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include <time.h>
+#include <string.h>
 
 #include <libubus.h>
 #include <libubox/uloop.h>
@@ -98,6 +99,7 @@ service_add_srv(const char *name, struct service *s, int ttl)
 	if (len <= sizeof(*sd))
 		return;
 
+	memset(sd, 0, sizeof(*sd));
 	sd->port = cpu_to_be16(s->port);
 	dns_packet_answer(name, TYPE_SRV, mdns_buf, len, ttl);
 }
