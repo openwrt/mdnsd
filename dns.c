@@ -150,13 +150,16 @@ bool dns_packet_question(const char *name, int type)
 	return true;
 }
 
-void dns_packet_answer(const char *name, int type, const uint8_t *rdata, uint16_t rdlength, int ttl)
+static bool dns_packet_record(const char *name, int type, const uint8_t *rdata, uint16_t rdlength, int ttl)
 {
 	struct dns_answer *a;
 
 	pkt.h.flags |= cpu_to_be16(0x8400);
 
 	a = dns_packet_record_add(sizeof(*a) + rdlength, name);
+	if (!a)
+		return false;
+
 	memset(a, 0, sizeof(*a));
 	a->type = cpu_to_be16(type);
 	a->class = cpu_to_be16(1);
@@ -165,7 +168,19 @@ void dns_packet_answer(const char *name, int type, const uint8_t *rdata, uint16_
 	memcpy(a + 1, rdata, rdlength);
 	DBG(1, "A <- %s %s\n", dns_type_string(be16_to_cpu(a->type)), name);
 
-	pkt.h.answers += cpu_to_be16(1);
+	return true;
+}
+
+void dns_packet_answer(const char *name, int type, const uint8_t *rdata, uint16_t rdlength, int ttl)
+{
+	if (dns_packet_record(name, type, rdata, rdlength, ttl))
+		pkt.h.answers += cpu_to_be16(1);
+}
+
+void dns_packet_additional(const char *name, int type, const uint8_t *rdata, uint16_t rdlength, int ttl)
+{
+	if (dns_packet_record(name, type, rdata, rdlength, ttl))
+		pkt.h.additional += cpu_to_be16(1);
 }
 
 static void dns_question_set_multicast(struct dns_question *q, bool val)
@@ -183,6 +198,9 @@ void dns_packet_send(struct interface *iface, struct sockaddr *to, bool query, i
 		.iov_len = sizeof(pkt.h) + pkt_len,
 	};
 	size_t i;
+
+	if ((query && pkt.h.questions == 0) || (!query && pkt.h.answers == 0))
+		return;
 
 	if (query) {
 		if (multicast < 0)
@@ -265,8 +283,8 @@ void dns_query(const char *name, uint16_t type)
 		uloop_timeout_set(&timer, 100);
 }
 
-void
-dns_reply_a(struct interface *iface, struct sockaddr *to, int ttl, const char *hostname)
+static void
+dns_reply_a_qtype(struct interface *iface, struct sockaddr *to, int ttl, const char *hostname, uint16_t qtype)
 {
 	struct ifaddrs *ifap, *ifa;
 	struct sockaddr_in *sa;
@@ -281,18 +299,43 @@ dns_reply_a(struct interface *iface, struct sockaddr *to, int ttl, const char *h
 	for (ifa = ifap; ifa; ifa = ifa->ifa_next) {
 		if (strcmp(ifa->ifa_name, iface->name))
 			continue;
-		if (ifa->ifa_addr->sa_family == AF_INET) {
+		if (ifa->ifa_addr->sa_family == AF_INET && (qtype == TYPE_ANY || qtype == TYPE_A)) {
 			sa = (struct sockaddr_in *) ifa->ifa_addr;
 			dns_packet_answer(hostname, TYPE_A, (uint8_t *) &sa->sin_addr, 4, ttl);
 		}
-		if (ifa->ifa_addr->sa_family == AF_INET6) {
+		if (ifa->ifa_addr->sa_family == AF_INET6 && (qtype == TYPE_ANY || qtype == TYPE_AAAA)) {
 			sa6 = (struct sockaddr_in6 *) ifa->ifa_addr;
 			dns_packet_answer(hostname, TYPE_AAAA, (uint8_t *) &sa6->sin6_addr, 16, ttl);
+		}
+	}
+	if (qtype == TYPE_A) {
+		for (ifa = ifap; ifa; ifa = ifa->ifa_next) {
+			if (strcmp(ifa->ifa_name, iface->name))
+				continue;
+			if (ifa->ifa_addr->sa_family == AF_INET6) {
+				sa6 = (struct sockaddr_in6 *) ifa->ifa_addr;
+				dns_packet_additional(hostname, TYPE_AAAA, (uint8_t *) &sa6->sin6_addr, 16, ttl);
+			}
+		}
+	} else if (qtype == TYPE_AAAA) {
+		for (ifa = ifap; ifa; ifa = ifa->ifa_next) {
+			if (strcmp(ifa->ifa_name, iface->name))
+				continue;
+			if (ifa->ifa_addr->sa_family == AF_INET) {
+				sa = (struct sockaddr_in *) ifa->ifa_addr;
+				dns_packet_additional(hostname, TYPE_A, (uint8_t *) &sa->sin_addr, 4, ttl);
+			}
 		}
 	}
 	freeifaddrs(ifap);
 
 	dns_packet_send(iface, to, 0, 0);
+}
+
+void
+dns_reply_a(struct interface *iface, struct sockaddr *to, int ttl, const char *hostname)
+{
+	dns_reply_a_qtype(iface, to, ttl, hostname, TYPE_ANY);
 }
 
 void
@@ -602,7 +645,7 @@ parse_question(struct interface *iface, struct sockaddr *from, char *name, struc
 		if (!strcasecmp(name, mdns_hostname_local)) {
 			dns_reply_a(iface, to, announce_ttl, NULL);
 			dns_reply_a_additional(iface, to, announce_ttl);
-			service_reply(iface, to, NULL, NULL, announce_ttl, is_unicast);
+			service_reply(iface, to, NULL, NULL, announce_ttl, is_unicast, q->type);
 		}
 		break;
 
@@ -634,18 +677,21 @@ parse_question(struct interface *iface, struct sockaddr *from, char *name, struc
 
 		if (!strcasecmp(name, C_DNS_SD)) {
 			service_announce_services(iface, to, announce_ttl);
-		} else {
-			if (name[0] == '_') {
-				service_reply(iface, to, NULL, name, announce_ttl, is_unicast);
-			} else {
-				/* First dot separates instance name from the rest */
-				char *dot = strchr(name, '.');
+		} else if (name[0] == '_') {
+			service_reply(iface, to, NULL, name, announce_ttl, 1, q->type);
+		}
+		break;
 
-				if (dot) {
-					*dot = '\0';
-					service_reply(iface, to, name, dot + 1, announce_ttl, is_unicast);
-					*dot = '.';
-				}
+	case TYPE_SRV:
+	case TYPE_TXT:
+		if (name[0] != '_') {
+			/* First dot separates instance name from the rest */
+			char *dot = strchr(name, '.');
+
+			if (dot) {
+				*dot = '\0';
+				service_reply(iface, to, name, dot + 1, announce_ttl, 1, q->type);
+				*dot = '.';
 			}
 		}
 		break;
@@ -656,13 +702,13 @@ parse_question(struct interface *iface, struct sockaddr *from, char *name, struc
 		if (host)
 			*host = '\0';
 		if (!strcasecmp(umdns_host_label, name)) {
-			dns_reply_a(iface, to, announce_ttl, NULL);
+			dns_reply_a_qtype(iface, to, announce_ttl, NULL, q->type);
 		} else {
 			if (host)
 				*host = '.';
 			vlist_for_each_element(&hostnames, h, node)
 				if (!strcasecmp(h->hostname, name))
-					dns_reply_a(iface, to, announce_ttl, h->hostname);
+					dns_reply_a_qtype(iface, to, announce_ttl, h->hostname, q->type);
 		}
 		break;
 	};
