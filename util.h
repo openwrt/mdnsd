@@ -26,6 +26,9 @@
 #define MDNS_BUF_LEN	(8 * 1024)
 #define HOSTNAME_LEN	256
 
+/* Highest -N suffix appended to the host name to resolve a conflict. */
+#define HOSTNAME_MAX_SUFFIX	9
+
 extern int debug;
 extern uint8_t mdns_buf[MDNS_BUF_LEN];
 
@@ -39,6 +42,14 @@ extern char umdns_host_label[HOSTNAME_LEN];
 extern char mdns_hostname_local[HOSTNAME_LEN + 6];
 
 extern void get_hostname(void);
+
+/**
+ * Append or bump the -N suffix on the host name after a probe conflict
+ *
+ * Returns false once HOSTNAME_MAX_SUFFIX is reached, leaving the name as is.
+ */
+extern bool rename_hostname(void);
+
 extern uint32_t rand_time_delta(uint32_t t);
 extern time_t monotonic_time(void);
 

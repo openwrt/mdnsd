@@ -37,6 +37,8 @@ enum {
 
 int announce_ttl = 75 * 60;
 
+static void announce_restart(void);
+
 static void
 announce_timer(struct uloop_timeout *timeout)
 {
@@ -58,7 +60,24 @@ announce_timer(struct uloop_timeout *timeout)
 
 		case STATE_PROBE_END:
 			if (cache_host_is_known(mdns_hostname_local)) {
-				fprintf(stderr, "the host %s already exists. stopping announce service\n", mdns_hostname_local);
+				char conflict[sizeof(mdns_hostname_local)];
+
+				snprintf(conflict, sizeof(conflict), "%s", mdns_hostname_local);
+
+				if (!rename_hostname()) {
+					fprintf(stderr, "the host %s already exists. stopping announce service\n",
+						conflict);
+					return;
+				}
+
+				fprintf(stderr, "the host %s already exists, renaming to %s\n",
+					conflict, mdns_hostname_local);
+
+				/*
+				 * The host name is global, so every interface has to probe
+				 * again for the new one rather than announce the old one.
+				 */
+				announce_restart();
 				return;
 			}
 			iface->announce_state++;
@@ -79,6 +98,15 @@ announce_init(struct interface *iface)
 	iface->announce_state = STATE_PROBE1;
 	iface->announce_timer.cb = announce_timer;
 	uloop_timeout_set(&iface->announce_timer, 100);
+}
+
+static void
+announce_restart(void)
+{
+	struct interface *iface;
+
+	vlist_for_each_element(&interfaces, iface, node)
+		announce_init(iface);
 }
 
 void

@@ -38,6 +38,9 @@ int debug = 0;
 char umdns_host_label[HOSTNAME_LEN];
 char mdns_hostname_local[HOSTNAME_LEN + 6];
 
+static char umdns_host_base[HOSTNAME_LEN];
+static unsigned int umdns_host_suffix;
+
 uint32_t
 rand_time_delta(uint32_t t)
 {
@@ -61,6 +64,21 @@ rand_time_delta(uint32_t t)
 	return val;
 }
 
+/* "-" plus the widest suffix an unsigned int can print, plus the terminator */
+#define HOSTNAME_SUFFIX_LEN	12
+
+static void apply_hostname(void)
+{
+	if (umdns_host_suffix)
+		snprintf(umdns_host_label, sizeof(umdns_host_label), "%.*s-%u",
+			 (int)sizeof(umdns_host_label) - HOSTNAME_SUFFIX_LEN,
+			 umdns_host_base, umdns_host_suffix + 1);
+	else
+		snprintf(umdns_host_label, sizeof(umdns_host_label), "%s", umdns_host_base);
+
+	snprintf(mdns_hostname_local, sizeof(mdns_hostname_local), "%s.local", umdns_host_label);
+}
+
 void get_hostname(void)
 {
 	struct utsname utsname;
@@ -71,8 +89,28 @@ void get_hostname(void)
 	if (uname(&utsname) < 0)
 		return;
 
-	snprintf(umdns_host_label, sizeof(umdns_host_label), "%s", utsname.nodename);
-	snprintf(mdns_hostname_local, sizeof(mdns_hostname_local), "%s.local", utsname.nodename);
+	/*
+	 * Only start over from the unsuffixed name when the system host name
+	 * itself changed, so that a name picked to resolve a conflict survives
+	 * an unrelated reload.
+	 */
+	if (strcmp(umdns_host_base, utsname.nodename)) {
+		snprintf(umdns_host_base, sizeof(umdns_host_base), "%s", utsname.nodename);
+		umdns_host_suffix = 0;
+	}
+
+	apply_hostname();
+}
+
+bool rename_hostname(void)
+{
+	if (umdns_host_suffix >= HOSTNAME_MAX_SUFFIX)
+		return false;
+
+	umdns_host_suffix++;
+	apply_hostname();
+
+	return true;
 }
 
 time_t monotonic_time(void)
