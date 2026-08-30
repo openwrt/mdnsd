@@ -518,8 +518,8 @@ static int interface_init_socket(enum umdns_socket_type type, bool *mcast)
 		local.sin_port = htons(MCAST_PORT);
 		break;
 	case SOCK_MC_IPV6:
-		setsockopt(fd, IPPROTO_IPV6, IPV6_MULTICAST_HOPS, &ttl, sizeof(ttl));
-		setsockopt(fd, IPPROTO_IPV6, IPV6_UNICAST_HOPS, &ttl, sizeof(ttl));
+		setsockopt(fd, IPPROTO_IPV6, IPV6_MULTICAST_HOPS, &ittl, sizeof(ittl));
+		setsockopt(fd, IPPROTO_IPV6, IPV6_UNICAST_HOPS, &ittl, sizeof(ittl));
 		setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &yes, sizeof(yes));
 		setsockopt(fd, IPPROTO_IPV6, IPV6_MULTICAST_LOOP, &no, sizeof(no));
 		local6.sin6_port = htons(MCAST_PORT);
