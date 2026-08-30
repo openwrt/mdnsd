@@ -128,7 +128,14 @@ cache_gc_timer(struct uloop_timeout *timeout)
 			continue;
 		}
 		r->refresh += 50;
-		dns_send_question(r->iface, (struct sockaddr *)&r->from, r->record, r->type, 0);
+		/*
+		 * Preserve refresh routing: multicast interfaces send a QU query
+		 * to the mDNS group, while unicast interfaces query the cached peer.
+		 */
+		dns_send_question(r->iface,
+				  interface_multicast(r->iface) ? NULL :
+				  (struct sockaddr *)&r->from,
+				  r->record, r->type, 0);
 	}
 
 	avl_for_each_element_safe(&services, s, avl, t) {

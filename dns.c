@@ -589,11 +589,8 @@ parse_question(struct interface *iface, struct sockaddr *from, char *name, struc
 	char *host, *host6;
 
 	/* TODO: Multicast if more than one quarter of TTL has passed */
-	if (is_unicast) {
+	if (is_unicast)
 		to = from;
-		if (interface_multicast(iface))
-			iface = interface_get(iface->name, iface->type | SOCKTYPE_BIT_UNICAST);
-	}
 
 	DBG(1, "Q -> %s %s\n", dns_type_string(q->type), name);
 

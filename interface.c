@@ -78,10 +78,8 @@ interface_send_packet4(struct interface *iface, struct sockaddr_in *to, struct i
 	pkti->ipi_ifindex = iface->ifindex;
 
 	fd = ufd[iface->type].fd;
-	if (interface_multicast(iface)) {
+	if (interface_multicast(iface) && !to) {
 		a.sin_addr.s_addr = inet_addr(MCAST_ADDR);
-		if (to)
-			fprintf(stderr, "Ignoring IPv4 address for multicast interface\n");
 	} else {
 		a.sin_addr.s_addr = to->sin_addr.s_addr;
 		a.sin_port = to->sin_port;
@@ -121,10 +119,8 @@ interface_send_packet6(struct interface *iface, struct sockaddr_in6 *to, struct 
 	pkti->ipi6_ifindex = iface->ifindex;
 
 	fd = ufd[iface->type].fd;
-	if (interface_multicast(iface)) {
+	if (interface_multicast(iface) && !to) {
 		inet_pton(AF_INET6, MCAST_ADDR6, &a.sin6_addr);
-		if (to)
-			fprintf(stderr, "Ignoring IPv6 address for multicast interface\n");
 	} else {
 		a.sin6_addr = to->sin6_addr;
 	}
@@ -518,8 +514,8 @@ static int interface_init_socket(enum umdns_socket_type type, bool *mcast)
 		local.sin_port = htons(MCAST_PORT);
 		break;
 	case SOCK_MC_IPV6:
-		setsockopt(fd, IPPROTO_IPV6, IPV6_MULTICAST_HOPS, &ttl, sizeof(ttl));
-		setsockopt(fd, IPPROTO_IPV6, IPV6_UNICAST_HOPS, &ttl, sizeof(ttl));
+		setsockopt(fd, IPPROTO_IPV6, IPV6_MULTICAST_HOPS, &ittl, sizeof(ittl));
+		setsockopt(fd, IPPROTO_IPV6, IPV6_UNICAST_HOPS, &ittl, sizeof(ittl));
 		setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &yes, sizeof(yes));
 		setsockopt(fd, IPPROTO_IPV6, IPV6_MULTICAST_LOOP, &no, sizeof(no));
 		local6.sin6_port = htons(MCAST_PORT);
