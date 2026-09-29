@@ -360,7 +360,7 @@ read_socket6(struct uloop_fd *u, unsigned int events)
 	for (size_t i = 0; i < iface->addrs.n_addr; i++) {
 		if (!interface_valid_src((void *)&iface->addrs.v6[i].addr,
 					 (void *)&iface->addrs.v6[i].mask,
-					 (void *)&from.sin6_addr, 6)) {
+					 (void *)&from.sin6_addr, 16)) {
 			valid_src = true;
 			break;
 		}
