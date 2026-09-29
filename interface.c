@@ -598,10 +598,13 @@ int interface_add(const char *name)
 	struct ifaddrs *ifap, *ifa;
 	struct interface_addr_list addr4 = {}, addr6 = {};
 
-	getifaddrs(&ifap);
+	if (getifaddrs(&ifap) < 0)
+		return 1;
 
 	for (ifa = ifap; ifa; ifa = ifa->ifa_next) {
 		if (strcmp(ifa->ifa_name, name))
+			continue;
+		if (!ifa->ifa_addr)
 			continue;
 		if (ifa->ifa_addr->sa_family == AF_INET) {
 			struct sockaddr_in *sin;

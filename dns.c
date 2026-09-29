@@ -281,11 +281,14 @@ dns_reply_a(struct interface *iface, struct sockaddr *to, int ttl, const char *h
 	if (!hostname)
 		hostname = mdns_hostname_local;
 
-	getifaddrs(&ifap);
+	if (getifaddrs(&ifap) < 0)
+		return;
 
 	dns_packet_init();
 	for (ifa = ifap; ifa; ifa = ifa->ifa_next) {
 		if (strcmp(ifa->ifa_name, iface->name))
+			continue;
+		if (!ifa->ifa_addr)
 			continue;
 		if (ifa->ifa_addr->sa_family == AF_INET) {
 			sa = (struct sockaddr_in *) ifa->ifa_addr;
@@ -508,10 +511,13 @@ dns_reply_reverse_ip6_mapping(struct interface *iface, struct sockaddr *to, int 
 	uint8_t buffer[256];
 	int len;
 
-	getifaddrs(&ifap);
+	if (getifaddrs(&ifap) < 0)
+		return;
 	dns_packet_init();
 	for (ifa = ifap; ifa; ifa = ifa->ifa_next) {
 		if (strcmp(ifa->ifa_name, iface->name))
+			continue;
+		if (!ifa->ifa_addr)
 			continue;
 		if (ifa->ifa_addr->sa_family == AF_INET6) {
 			sa6 = (struct sockaddr_in6 *) ifa->ifa_addr;
@@ -543,10 +549,13 @@ dns_reply_reverse_ip4_mapping(struct interface *iface, struct sockaddr *to, int 
 	uint8_t buffer[256];
 	int len;
 
-	getifaddrs(&ifap);
+	if (getifaddrs(&ifap) < 0)
+		return;
 	dns_packet_init();
 	for (ifa = ifap; ifa; ifa = ifa->ifa_next) {
 		if (strcmp(ifa->ifa_name, iface->name))
+			continue;
+		if (!ifa->ifa_addr)
 			continue;
 		if (ifa->ifa_addr->sa_family == AF_INET) {
 			sa = (struct sockaddr_in *) ifa->ifa_addr;
