@@ -232,6 +232,7 @@ dns_query_pending(struct uloop_timeout *t)
 
 		count = 0;
 		dns_packet_broadcast();
+		dns_packet_init();
 	}
 
 	if (count)
