@@ -347,11 +347,16 @@ void cache_answer(struct interface *iface, struct sockaddr *from, uint8_t *base,
 
 	case TYPE_TXT:
 		rdlength = a->rdlength;
-		if (rdlength <= 2)
+		if (rdlength <= 2 || *rdata >= rdlength)
 			return;
 
+		/*
+		 * The copy fills [0 .. rdlength - 2]; terminate at rdlength - 1
+		 * and rdlength so cache_dump_records() finds the terminating
+		 * empty string inside the tlen sized record.
+		 */
 		memcpy(rdata_buffer, &rdata[1], rdlength-1);
-		rdata_buffer[rdlength] = rdata_buffer[rdlength + 1] = '\0';
+		rdata_buffer[rdlength - 1] = rdata_buffer[rdlength] = '\0';
 		tlen = rdlength + 1;
 		p = &rdata_buffer[*rdata];
 
