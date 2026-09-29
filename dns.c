@@ -608,6 +608,8 @@ parse_question(struct interface *iface, struct sockaddr *from, char *name, struc
 		to = from;
 		if (interface_multicast(iface))
 			iface = interface_get(iface->name, iface->type | SOCKTYPE_BIT_UNICAST);
+		if (!iface)
+			return;
 	}
 
 	DBG(1, "Q -> %s %s\n", dns_type_string(q->type), name);
