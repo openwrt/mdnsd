@@ -90,10 +90,13 @@ umdns_announcements(struct ubus_context *ctx, struct ubus_object *obj,
 				uint8_t len = s->txt[txt_offset++];
 				if (!len)
 					break;
+				if (len > s->txt_len - txt_offset)
+					break;
 
 				// copy to NUL-terminated string
 				buf = blobmsg_alloc_string_buffer(&b, "txt", len + 1);
-				strlcpy(buf, (const char *) &s->txt[txt_offset], len+1);
+				memcpy(buf, &s->txt[txt_offset], len);
+				buf[len] = '\0';
 				blobmsg_add_string_buffer(&b);
 
 				txt_offset += len;
