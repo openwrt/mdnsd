@@ -98,6 +98,8 @@ service_add_srv(const char *name, struct service *s, int ttl)
 	if (len <= sizeof(*sd))
 		return;
 
+	sd->priority = 0;
+	sd->weight = 0;
 	sd->port = cpu_to_be16(s->port);
 	dns_packet_answer(name, TYPE_SRV, mdns_buf, len, ttl);
 }
