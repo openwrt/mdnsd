@@ -247,6 +247,9 @@ void dns_query(const char *name, uint16_t type)
 		if (e->type == type)
 			return;
 
+		if (avl_is_last(&queries, &e->node))
+			break;
+
 		e = avl_next_element(e, node);
 		if (strcmp(e->name, name) != 0)
 			break;
