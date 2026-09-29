@@ -157,6 +157,9 @@ void dns_packet_answer(const char *name, int type, const uint8_t *rdata, uint16_
 	pkt.h.flags |= cpu_to_be16(0x8400);
 
 	a = dns_packet_record_add(sizeof(*a) + rdlength, name);
+	if (!a)
+		return;
+
 	memset(a, 0, sizeof(*a));
 	a->type = cpu_to_be16(type);
 	a->class = cpu_to_be16(1);
