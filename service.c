@@ -255,9 +255,22 @@ service_load_blob(struct blob_attr *b)
 	if (!_tb[SERVICE_PORT] || !_tb[SERVICE_SERVICE])
 		return;
 
+	/* The txt entries are read below with blobmsg_get_string(); drop the
+	 * whole list unless every element really is a string. */
+	if (_tb[SERVICE_TXT] &&
+	    !blobmsg_check_attr_list(_tb[SERVICE_TXT], BLOBMSG_TYPE_STRING))
+		_tb[SERVICE_TXT] = NULL;
+
 	if (_tb[SERVICE_TXT])
-		blobmsg_for_each_attr(txt, _tb[SERVICE_TXT], rem2)
-			txt_len += 1 + strlen(blobmsg_get_string(txt));
+		blobmsg_for_each_attr(txt, _tb[SERVICE_TXT], rem2) {
+			size_t len = strlen(blobmsg_get_string(txt));
+
+			if (!len)
+				continue;
+			if (len > 0xff)
+				len = 0xff;
+			txt_len += 1 + len;
+		}
 
 	n = strlen(blobmsg_name(b));
 	s = calloc_a(sizeof(*s),
@@ -287,9 +300,9 @@ service_load_blob(struct blob_attr *b)
 
 	if (_tb[SERVICE_TXT])
 		blobmsg_for_each_attr(txt, _tb[SERVICE_TXT], rem2) {
-			int len = strlen(blobmsg_get_string(txt));
+			size_t len = strlen(blobmsg_get_string(txt));
 			if (!len)
-				return;
+				continue;
 			if (len > 0xff)
 				len = 0xff;
 			*d_txt = len;
