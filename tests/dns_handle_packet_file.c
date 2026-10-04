@@ -14,9 +14,19 @@
 #include "dns.h"
 #include "cache.c"
 #include "interface.h"
+#include "ubus.h"
 
 int cfg_proto = 0;
 int cfg_no_subnet = 0;
+
+void umdns_udebug_printf(const char *format, ...)
+{
+}
+
+void umdns_udebug_config(struct udebug_ubus *ctx, struct blob_attr *data,
+			 bool enabled)
+{
+}
 
 static void fuzz_dns_handle_packet(uint8_t *input, size_t size)
 {
