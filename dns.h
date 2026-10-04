@@ -14,6 +14,7 @@
 #ifndef _DNS_H__
 #define _DNS_H__
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <arpa/inet.h>
 
