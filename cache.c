@@ -264,6 +264,32 @@ cache_record_find(char *record, int type, int port, int rdlength, uint8_t *rdata
 	return NULL;
 }
 
+/* An address record carrying one of our own addresses is not a conflict:
+ * RFC 6762 section 9 only counts records whose data differs, and a network
+ * with an mDNS reflector sends our own announcements straight back. */
+static bool
+cache_record_is_own_address(struct cache_record *r)
+{
+	struct interface *iface;
+	int i;
+
+	vlist_for_each_element(&interfaces, iface, node) {
+		if (r->type == TYPE_A && !interface_ipv6(iface) &&
+		    r->rdlength == sizeof(struct in_addr)) {
+			for (i = 0; i < iface->addrs.n_addr; i++)
+				if (!memcmp(r->rdata, &iface->addrs.v4[i].addr, sizeof(struct in_addr)))
+					return true;
+		} else if (r->type == TYPE_AAAA && interface_ipv6(iface) &&
+			   r->rdlength == sizeof(struct in6_addr)) {
+			for (i = 0; i < iface->addrs.n_addr; i++)
+				if (!memcmp(r->rdata, &iface->addrs.v6[i].addr, sizeof(struct in6_addr)))
+					return true;
+		}
+	}
+
+	return false;
+}
+
 int
 cache_host_is_known(char *record)
 {
@@ -274,6 +300,8 @@ cache_host_is_known(char *record)
 
 		l = !avl_is_last(&records, &l->avl) ? avl_next_element(l, avl) : NULL;
 		if ((r->type != TYPE_A) && (r->type != TYPE_AAAA))
+			continue;
+		if (cache_record_is_own_address(r))
 			continue;
 		return 1;
 	}

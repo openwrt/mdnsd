@@ -62,6 +62,12 @@ announce_timer(struct uloop_timeout *timeout)
 				return;
 			}
 			iface->announce_state++;
+			/*
+			 * Announce the service instances along with the host records
+			 * once probing is done (RFC 6762 section 8.3). STATE_ANNOUNCE
+			 * only covers the host records and the service types.
+			 */
+			service_reply(iface, NULL, NULL, NULL, announce_ttl, 1);
 			/* Fall through */
 
 		case STATE_ANNOUNCE:
